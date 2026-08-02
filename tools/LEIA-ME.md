@@ -1,11 +1,17 @@
 # Ferramentas de desenvolvimento
 
-Nada aqui é necessário para *usar* o Plyscope — é o que se usa para mexer nele.
+Fora o `servidor.py` e o `servidor.js`, nada aqui é necessário para *usar* o Plyscope — é o que se usa para mexer nele.
 
 ```bash
 cd tools
 npm install        # chess.js e jsdom
 ```
+
+## `servidor.py` e `servidor.js` — servidor local do macOS e do Linux
+
+Chamados pelo `plyscope.sh` (e pelo `Abrir Plyscope.command`), não diretamente. São o equivalente do `servidor.ps1` do Windows: servem a pasta do projeto em `http://localhost:8123` com os cabeçalhos `Cross-Origin-Opener-Policy: same-origin` e `Cross-Origin-Embedder-Policy: require-corp`, que ligam o Stockfish multi-thread, e com `application/wasm` no `.wasm`.
+
+O `servidor.py` é o caminho normal (Python 3); o `servidor.js` é o plano B para máquinas sem Python 3. Os dois aceitam `[porta]` e `--sem-navegador`.
 
 ## `test.js` — teste funcional
 

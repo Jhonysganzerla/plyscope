@@ -4,9 +4,19 @@ Análise de partidas no estilo do Game Review do chess.com, rodando **100% no se
 
 ## Como abrir
 
-Dê dois cliques em **`Abrir Plyscope.bat`**.
+**Windows** — dois cliques em **`Abrir Plyscope.bat`**. Ele usa o PowerShell, que já vem no Windows.
 
-Isso liga um servidor local minúsculo (via PowerShell, já incluso no Windows) e abre o app no navegador em `http://localhost:8123/index.html`. Deixe a janela preta aberta enquanto estiver usando; para encerrar, feche a janela.
+**macOS** — dois cliques em **`Abrir Plyscope.command`**. Se o Finder recusar por o arquivo ter vindo da internet, clique com o botão direito → *Abrir* → *Abrir*. Pelo terminal, `./plyscope.sh` faz o mesmo.
+
+**Linux** — no terminal, dentro da pasta do Plyscope:
+
+```bash
+./plyscope.sh
+```
+
+Nos três casos sobe um servidor local minúsculo e o app abre no navegador em `http://localhost:8123/index.html`. Deixe a janela do servidor aberta enquanto estiver usando; para encerrar, feche a janela (ou `Ctrl+C` no terminal).
+
+No macOS e no Linux o script usa o **Python 3**, que quase sempre já está instalado; se não estiver, ele tenta o **Node.js**, e se não houver nenhum dos dois diz o que instalar.
 
 > **Por que não abrir o `index.html` direto?** O navegador bloqueia o carregamento de WebAssembly em arquivos abertos via `file://`. O servidor local resolve isso — nada sai do seu computador.
 
@@ -16,7 +26,7 @@ Isso liga um servidor local minúsculo (via PowerShell, já incluso no Windows) 
 2. **Analisar partida** — o Stockfish avalia todas as posições. A primeira vez baixa o motor do próprio disco (≈7 MB) e leva alguns segundos a mais.
 3. **Relatório** — precisão de cada jogador, gráfico de vantagem (clicável), contagem por tipo de lance e os momentos decisivos da partida.
 4. **Lances** — cada lance recebe um selo. Clique para ir até a posição.
-5. **Motor** — as três melhores linhas na posição atual. O botão *Analisar esta posição a fundo* roda o motor sem limite de profundidade.
+5. **Motor** — as três melhores linhas na posição atual. O botão *Analisar esta posição a fundo* roda o motor sem limite de profundidade. A linha cinza embaixo diz em que modo o motor está rodando (veja *Um thread ou vários*).
 6. **Explorar** — clique na peça e depois na casa de destino para testar variações; o motor avalia na hora. Clicar num lance das linhas do motor também joga a variação até ali. Use *Voltar à partida* para sair.
 
 Atalhos: `←` `→` navegam, `Home`/`End` vão ao início/fim, `F` gira o tabuleiro, `espaço` liga a reprodução automática, `M` liga e desliga o som.
@@ -76,6 +86,17 @@ O seletor no topo controla a análise:
 
 Em todos os casos há uma **segunda passada** automática: lances suspeitos (erros aparentes e sacrifícios) são reavaliados com 6 níveis a mais de profundidade, o que evita tanto "erros" falsos quanto brilhantes perdidos por análise rasa.
 
+## Um thread ou vários
+
+O app traz dois motores iguais em força e diferentes em velocidade, e escolhe sozinho ao abrir:
+
+- **Multi-thread** — usa vários núcleos do seu processador (um a menos do que você tem, no máximo 8). É bem mais rápido.
+- **1 thread** — o de sempre, funciona em qualquer lugar.
+
+O multi-thread depende de um recurso que o navegador só libera quando a página é servida com dois cabeçalhos específicos (`Cross-Origin-Opener-Policy` e `Cross-Origin-Embedder-Policy`). Os atalhos do Windows, do macOS e do Linux já mandam esses cabeçalhos; um `python3 -m http.server` avulso, não. A aba **Motor** mostra qual dos dois está valendo agora, com o número de threads.
+
+Se o multi-thread não conseguir iniciar, o app volta sozinho para 1 thread — a análise continua igual, só mais devagar. A busca de partidas no Chess.com e no Lichess funciona nos dois modos.
+
 ## Precisão
 
 Fórmulas públicas do Lichess: a avaliação vira chance de vitória, a queda de chance vira precisão do lance, e a precisão da partida é a média entre a média ponderada (por volatilidade da posição) e a média harmônica. Números próximos, mas não idênticos, aos do chess.com — que usa fórmula própria e fechada.
@@ -83,8 +104,9 @@ Fórmulas públicas do Lichess: a avaliação vira chance de vitória, a queda d
 ## O que tem dentro
 
 - `index.html` — o app inteiro (interface, tabuleiro, chess.js e a lógica de análise).
-- `engine/` — Stockfish 17.1 lite single-thread (WebAssembly), licença GPLv3.
-- `servidor.ps1` — servidor local.
+- `engine/` — Stockfish 17.1 lite (WebAssembly), nas versões de 1 thread e multi-thread, licença GPLv3.
+- `servidor.ps1` — servidor local do Windows.
+- `plyscope.sh`, `Abrir Plyscope.command`, `tools/servidor.py`, `tools/servidor.js` — o mesmo no macOS e no Linux.
 
 Créditos: [Stockfish](https://stockfishchess.org/) (GPLv3, build de nmrugg/stockfish.js), [chess.js](https://github.com/jhlywa/chess.js) (BSD), peças do sprite do [cm-chessboard](https://github.com/shaack/cm-chessboard) (CC BY-SA 3.0, Cburnett/Wikimedia).
 

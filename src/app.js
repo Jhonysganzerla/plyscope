@@ -125,35 +125,89 @@ function somDoLance(san, cls) {
 
 /* ============================================================
    Motor (Stockfish em Web Worker)
+
+   Dois builds do mesmo Stockfish 17.1 lite:
+     engine/stockfish-lite-single.js  1 thread, roda em qualquer página;
+     engine/stockfish-lite.js         multi-thread, precisa de SharedArrayBuffer
+                                      e portanto de página cross-origin isolated.
+   O multi-thread só é tentado quando o navegador confirma o isolamento; se ele
+   não subir por qualquer motivo, o boot volta sozinho para o single-thread.
    ============================================================ */
+const ENGINE_MT = "engine/stockfish-lite.js";
+const ENGINE_ST = "engine/stockfish-lite-single.js";
+const ENGINE_NOME = "Stockfish 17.1 lite";
+
 const Engine = {
-  w: null, ready: false, listeners: new Set(), job: null,
+  w: null, ready: false, listeners: new Set(), job: null, mt: false, threads: 1, erro: false,
+  /** Deixa um núcleo livre para a interface e põe um teto de 8. */
+  planejaThreads() {
+    const n = Number((typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 0);
+    return n > 0 ? Math.max(1, Math.min(8, n - 1)) : 1;
+  },
+  /** Multi-thread só compensa com isolamento cross-origin e 2 threads ou mais. */
+  podeMt() {
+    return typeof self !== "undefined" && self.crossOriginIsolated === true &&
+      typeof SharedArrayBuffer === "function" && this.planejaThreads() >= 2;
+  },
   boot() {
     if (this.w) return this.readyPromise;
-    this.readyPromise = new Promise((resolve, reject) => {
-      try { this.w = new Worker("engine/stockfish-lite-single.js"); }
-      catch (e) { reject(e); return; }
+    this.readyPromise = this.iniciar(this.podeMt()).catch((e) => {
+      if (!this.mt) throw e;                          // single-thread falhou: não há para onde cair
+      this.derruba();                                 // multi-thread falhou: repete no single-thread
+      return (this.readyPromise = this.iniciar(false));
+    });
+    return this.readyPromise;
+  },
+  iniciar(mt) {
+    return new Promise((resolve, reject) => {
+      this.mt = !!mt; this.erro = false;
+      this.threads = mt ? this.planejaThreads() : 1;
+      const falhar = (e) => { if (!mt) { this.erro = true; notaMotor(); } reject(e); };
+      try { this.w = new Worker(mt ? ENGINE_MT : ENGINE_ST); }
+      catch (e) { falhar(e); return; }
       this.w.onerror = (e) => {
-        toast("Falha ao carregar o motor. Abra pelo atalho 'Abrir Analisador'.");
-        reject(e);
+        if (!mt) toast("Falha ao carregar o motor. Abra pelo atalho 'Abrir Analisador'.");
+        falhar(e);
       };
-      setTimeout(() => { if (!this.ready) reject(new Error("tempo esgotado ao iniciar o motor")); }, 90000);
+      const prazo = setTimeout(() => { if (!this.ready) falhar(new Error("tempo esgotado ao iniciar o motor")); }, mt ? 25000 : 90000);
       this.w.onmessage = (ev) => {
         const line = typeof ev.data === "string" ? ev.data : (ev.data && ev.data.data) || "";
         if (!line) return;
-        if (line === "uciok") { this.post("setoption name Hash value 128"); this.post("isready"); }
-        if (line === "readyok" && !this.ready) { this.ready = true; resolve(); }
+        if (line === "uciok") {
+          this.post("setoption name Hash value 128");
+          if (this.mt && this.threads > 1) this.post("setoption name Threads value " + this.threads);
+          this.post("isready");
+        }
+        if (line === "readyok" && !this.ready) { this.ready = true; clearTimeout(prazo); notaMotor(); resolve(); }
         this.listeners.forEach((fn) => fn(line));
       };
       this.post("uci");
     });
-    return this.readyPromise;
+  },
+  derruba() {
+    if (this.w) { try { this.w.terminate(); } catch (e) {} }
+    this.w = null; this.ready = false; this.mt = false; this.threads = 1;
   },
   post(cmd) { this.w.postMessage(cmd); },
   on(fn) { this.listeners.add(fn); },
   off(fn) { this.listeners.delete(fn); },
   stop() { if (this.w) this.post("stop"); },
 };
+
+/** Nota discreta na aba Motor: versão, modo e número de threads. */
+function notaMotor() {
+  const el = $("engineMode");
+  if (!el) return;
+  let modo;
+  if (Engine.ready) {
+    modo = Engine.mt
+      ? "multi-thread, " + Engine.threads + " threads"
+      : "1 thread" + (self.crossOriginIsolated ? "" : " — sem isolamento cross-origin");
+  } else {
+    modo = Engine.erro ? "indisponível" : "carregando…";
+  }
+  el.textContent = ENGINE_NOME + " (" + modo + ")";
+}
 
 function parseInfo(line, store) {
   // info depth 16 seldepth 20 multipv 1 score cp 23 nodes .. pv e2e4 e7e5
@@ -1284,20 +1338,22 @@ $("btnFetch").onclick = async () => {
   $("fetchHint").textContent = "Buscando…";
   try {
     let items = [];
+    // mode "cors" explícito: é o que mantém estas buscas funcionando quando a
+    // página está cross-origin isolated (COEP só barra requisições "no-cors").
     if (site === "lichess") {
       const r = await fetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}?max=25`,
-        { headers: { Accept: "application/x-chess-pgn" } });
+        { mode: "cors", headers: { Accept: "application/x-chess-pgn" } });
       if (!r.ok) throw new Error("usuário não encontrado");
       const txt = await r.text();
       items = splitPgn(txt).map((p) => ({ pgn: p, ...pgnInfo(p) }));
     } else {
-      const ar = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(user.toLowerCase())}/games/archives`);
+      const ar = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(user.toLowerCase())}/games/archives`, { mode: "cors" });
       if (!ar.ok) throw new Error("usuário não encontrado");
       const list = (await ar.json()).archives || [];
       if (!list.length) throw new Error("sem partidas públicas");
       let games = [];
       for (let k = list.length - 1; k >= 0 && games.length < 25 && k > list.length - 4; k--) {
-        const m = await fetch(list[k]);
+        const m = await fetch(list[k], { mode: "cors" });
         const gs = (await m.json()).games || [];
         games = games.concat(gs.reverse());
       }
@@ -1308,7 +1364,8 @@ $("btnFetch").onclick = async () => {
     $("fetchHint").textContent = items.length + " partidas encontradas — escolha uma:";
   } catch (e) {
     $("fetchHint").textContent = e instanceof TypeError
-      ? "Não deu certo: sem internet ou o site bloqueou a consulta."
+      ? "Não deu certo: sem internet ou o site bloqueou a consulta." +
+        (self.crossOriginIsolated ? " (Se só a busca falha, sirva o app sem os cabeçalhos COOP/COEP — veja o README.)" : "")
       : "Não deu certo: " + e.message + ".";
   }
 };
@@ -1351,6 +1408,6 @@ $("legend").innerHTML = CLS_ORDER.map((k) => `<span>${icon(k, 14)}${CLS[k].nome}
 window.addEventListener("resize", () => drawGraph());
 
 /* ---------- início ---------- */
-renderBoard(); renderEvalBar();
+renderBoard(); renderEvalBar(); notaMotor();
 Engine.boot().catch(() => {});
 })();

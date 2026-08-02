@@ -1,6 +1,11 @@
 # Plyscope - servidor local minimo.
 # O navegador exige http:// (e nao file://) para carregar o motor WebAssembly
 # dentro de um Web Worker. Nada sai desta maquina.
+#
+# Os cabecalhos COOP + COEP abaixo ligam o "cross-origin isolation", que libera
+# o SharedArrayBuffer e, com ele, o Stockfish multi-thread. Eles nao atrapalham
+# as buscas no Chess.com e no Lichess: o COEP so barra requisicoes "no-cors", e
+# o fetch do app roda em modo "cors" (as duas APIs mandam Access-Control-Allow-Origin).
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
@@ -44,6 +49,8 @@ Start-Process $url
 while ($listener.IsListening) {
   try {
     $ctx = $listener.GetContext()
+    $ctx.Response.Headers.Add("Cross-Origin-Opener-Policy", "same-origin")
+    $ctx.Response.Headers.Add("Cross-Origin-Embedder-Policy", "require-corp")
     $rel = [System.Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath.TrimStart("/"))
     if ([string]::IsNullOrWhiteSpace($rel)) { $rel = "index.html" }
     $path = Join-Path $root $rel

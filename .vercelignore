@@ -6,3 +6,5 @@ brand/
 node_modules/
 *.bat
 *.ps1
+*.sh
+*.command

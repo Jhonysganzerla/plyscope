@@ -7,7 +7,14 @@
 index.html                        linguist-generated=true
 src/vendor/*                      linguist-vendored=true
 engine/stockfish-lite-single.js   linguist-vendored=true
+engine/stockfish-lite.js          linguist-vendored=true
 
 # Scripts do Windows precisam de CRLF para o duplo clique funcionar sempre.
 *.bat text eol=crlf
 *.ps1 text eol=crlf
+
+# Scripts de macOS/Linux precisam de LF, mesmo se o clone for feito no Windows:
+# com CRLF o shebang quebra ("bad interpreter").
+*.sh      text eol=lf
+*.command text eol=lf
+*.py      text eol=lf
