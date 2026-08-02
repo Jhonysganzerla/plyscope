@@ -29,7 +29,7 @@ function loadPure() {
     "const CLS_ORDER = Object.keys(CLS).sort((a,b)=>CLS[a].ord-CLS[b].ord);",
     cut("function scoreToCp(", "function fmtEval("),
     cut("/* ---------- SEE simplificado", "/* ============================================================\n   Classificação de lances"),
-    "return { classifyMove, sacrificeInfo, winFor, scoreToCp, winPct, moveAccuracy, PV_VAL, BRI };",
+    "return { classifyMove, sacrificeInfo, ofertaAnterior, winFor, scoreToCp, winPct, moveAccuracy, PV_VAL, BRI };",
   ].join("\n");
   return new Function("Chess", bloco)(Chess);
 }
@@ -111,7 +111,8 @@ async function evalPos(fen, depth, multipv) {
 }
 
 /* ---------- avalia um lance ---------- */
-function julgar(fenBefore, uci, posB, posA) {
+/** `anterior` é o lance anterior da partida (verbose do chess.js), quando se sabe. */
+function julgar(fenBefore, uci, posB, posA, anterior) {
   const c = new Chess(fenBefore);
   const legal = c.moves().length;
   const mv = c.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || "q" });
@@ -120,13 +121,24 @@ function julgar(fenBefore, uci, posB, posA) {
   const winBefore = P.winFor(color, posB), winAfter = P.winFor(color, posA);
   const loss = Math.max(0, winBefore - winAfter);
   const sac = P.sacrificeInfo(fenAfter, color);
+  const recaptura = !!(mv.captured && anterior && anterior.captured && anterior.to === mv.to);
+  const sacPrevio = recaptura && sac.risked > 0 ? P.ofertaAnterior(fenBefore, color, sac.square) : 0;
   const ctx = {
     legal, isBest: !!(posB.best && posB.best.toLowerCase() === uci.toLowerCase()),
     loss, winBefore, winAfter,
     gapSegundo: posB.secondWin != null ? winBefore - posB.secondWin : null,
-    sac, capturado: mv.captured || null,
+    sac, capturado: mv.captured || null, recaptura, sacPrevio,
   };
   return { cls: P.classifyMove(ctx), ctx, san: mv.san, fenAfter };
+}
+/** Reconstrói o lance anterior a partir do PGN do caso (o recall só tem a FEN). */
+function lanceAnterior(pgn, ply) {
+  if (!pgn || ply < 2) return null;
+  try {
+    const c = new Chess();
+    c.loadPgn(pgn, { strict: false });
+    return c.history({ verbose: true })[ply - 2] || null;
+  } catch (e) { return null; }
 }
 
 /* ============================ modos ============================ */
@@ -140,7 +152,7 @@ async function recall(depth) {
     const c = new Chess(b.fen);
     c.move({ from: b.uci.slice(0, 2), to: b.uci.slice(2, 4), promotion: b.uci[4] || "q" });
     const posA = await evalPos(c.fen(), depth, 1);
-    const r = julgar(b.fen, b.uci, posB, posA);
+    const r = julgar(b.fen, b.uci, posB, posA, lanceAnterior(b.pgn, b.ply));
     linhas.push({ san: r.san, cls: r.cls, ...r.ctx, sacRisked: r.ctx.sac.risked,
       chessigma: b.results["chessigma@v75"], gameId: b.gameId, ply: b.ply, fen: b.fen, uci: b.uci });
     if ((i + 1) % 10 === 0) process.stderr.write("  " + (i + 1) + "/" + bench.length + "\n");
@@ -160,11 +172,14 @@ function relatorioRecall(linhas) {
     const liquido = l.sacRisked - ganho;
     let motivo;
     if (l.legal === 1) motivo = "lance forçado";
+    else if (l.recaptura && l.sacRisked > 0 && (l.sacPrevio || 0) >= l.sacRisked)
+      motivo = "retomada sem oferta nova (já pendurado: " + l.sacPrevio + ")";
     else if (l.loss > P.BRI.perdaMax) motivo = "perda de win% alta (" + l.loss.toFixed(1) + ")";
     else if (l.sacRisked < P.BRI.riscoMin) motivo = "nada em oferta (SEE " + l.sacRisked + ")";
     else if (liquido < P.BRI.liquidoMin) motivo = "líquido baixo (" + liquido + ")";
-    else if (l.winAfter < P.BRI.vitoriaMin) motivo = "posição perdida (" + l.winAfter.toFixed(0) + "%)";
-    else motivo = "já ganho (" + l.winBefore.toFixed(0) + "%)";
+    else if (l.winBefore < P.BRI.winAntesMin) motivo = "posição já perdida antes (" + l.winBefore.toFixed(0) + "%)";
+    else if (l.winAfter < P.BRI.winDepoisMin) motivo = "posição perdida depois (" + l.winAfter.toFixed(0) + "%)";
+    else motivo = "já ganho (" + l.winBefore.toFixed(0) + "%, líquido " + liquido + ")";
     (porMotivo[motivo] = porMotivo[motivo] || []).push(l.san);
   }
   Object.entries(porMotivo).sort((a, b) => b[1].length - a[1].length)
@@ -190,12 +205,13 @@ async function precisao(nJogos, depth) {
     esperados++;
     for (let i = 0; i < mvs.length; i++) {
       const uci = mvs[i].from + mvs[i].to + (mvs[i].promotion || "");
-      const r = julgar(fens[i], uci, pos[i], pos[i + 1]);
+      const r = julgar(fens[i], uci, pos[i], pos[i + 1], i > 0 ? mvs[i - 1] : null);
       totalLances++;
       todos.push({ san: r.san, gameId: b.gameId, ply: i + 1, gabarito: uci === b.uci,
         fen: fens[i], uci, legal: r.ctx.legal, isBest: r.ctx.isBest, loss: r.ctx.loss,
         winBefore: r.ctx.winBefore, winAfter: r.ctx.winAfter, gapSegundo: r.ctx.gapSegundo,
-        sac: r.ctx.sac, sacRisked: r.ctx.sac.risked, capturado: r.ctx.capturado });
+        sac: r.ctx.sac, sacRisked: r.ctx.sac.risked, capturado: r.ctx.capturado,
+        recaptura: r.ctx.recaptura, sacPrevio: r.ctx.sacPrevio });
       fs.writeFileSync(path.join(OUT,"jogos.json"), JSON.stringify(todos));
       if (r.cls === "brilhante") {
         totalBri++;

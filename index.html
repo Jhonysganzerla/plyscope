@@ -4508,6 +4508,32 @@ function sacrificeInfo(fenAfter, moverColor) {
   return best;
 }
 
+/**
+ * Material que o adversário JÁ conseguia ganhar nessa casa ANTES do lance —
+ * um lance nulo: passa a vez sem mexer em nada.
+ * Depois do lance, "peça em oferta" e "peça que já estava pendurada e
+ * continuou pendurada" têm exatamente a mesma cara para o `sacrificeInfo`.
+ * Só quem sabe distinguir as duas é a posição anterior.
+ */
+function ofertaAnterior(fenBefore, moverColor, sq) {
+  if (!sq) return 0;
+  const opp = moverColor === "w" ? "b" : "w";
+  const campos = fenBefore.split(" ");
+  campos[1] = opp;   // passa a vez
+  campos[3] = "-";   // o en passant herdado não sobrevive ao lance nulo
+  const nulo = campos.join(" ");
+  let b;
+  try { b = new Chess(nulo); } catch (e) { return 0; }
+  if (b.turn() !== opp) return 0;
+  let podeTomar = false;
+  try {
+    for (const m of b.moves({ verbose: true })) {
+      if (m.captured && m.to === sq) { podeTomar = true; break; }
+    }
+  } catch (e) { return 0; }
+  return podeTomar ? hangingValue(nulo, sq, opp) : 0;
+}
+
 /* ----------------------------------------------------------------------
    Parâmetros calibrados nos 100 lances do Brilliant Move Benchmark
    (os brilhantes que o chess.com marcou em 100 partidas reais).
@@ -4521,11 +4547,16 @@ const BRI = {
   winAntesMin: 40,    // sacrificar em posição já perdida não é brilhante
   winDepoisMin: 35,   // e depois do sacrifício ainda tem que estar de pé
   vitoriaMax: 97,     // com a partida já ganha não vale…
-  liquidoGrande: 250, // …a menos que a oferta seja de peça inteira
+  // …a menos que a oferta seja de peça inteira. O corte era 250, que deixava
+  // de fora o presente grego (Bxh7+): oferece um bispo, leva um peão, 220
+  // líquido. É o sacrifício brilhante mais conhecido do xadrez e não tinha
+  // por que cair do lado errado de um limiar.
+  liquidoGrande: 220,
 };
 
 function classifyMove(ctx) {
   const { legal, isBest, loss, winBefore, winAfter, gapSegundo, sac, capturado, recaptura } = ctx;
+  const sacPrevio = ctx.sacPrevio || 0;
   let cls;
   if (legal === 1) cls = "forcado";
   else if (loss < 2)   cls = isBest ? "melhor" : "otimo";
@@ -4540,8 +4571,15 @@ function classifyMove(ctx) {
   // Excelente: único lance que segura a posição
   if (isBest && legal > 1 && gapSegundo != null && gapSegundo >= 10) cls = "excelente";
 
-  // Brilhante: sacrifício correto (retomada obrigatória não conta)
-  if (legal > 1 && !recaptura && loss <= BRI.perdaMax) {
+  // Brilhante: sacrifício correto.
+  // Retomar não é oferecer: quando o lance só pega de volta o que o adversário
+  // acabou de capturar, o que ficou em oferta depois dele só conta se tiver
+  // nascido do próprio lance. Se o adversário já podia ganhar o mesmo naquela
+  // casa antes, a peça já estava pendurada e o mérito não é da retomada.
+  // (Vetar toda retomada, como antes, jogava fora o sacrifício clássico de
+  // retomar com a peça errada de propósito — Bxc4, Qxc5, Nxe6+ e companhia.)
+  const retomadaSemOferta = recaptura && sac.risked > 0 && sacPrevio >= sac.risked;
+  if (legal > 1 && !retomadaSemOferta && loss <= BRI.perdaMax) {
     const ganho = capturado ? PV_VAL[capturado] : 0;
     const liquido = sac.risked - ganho;
     if (sac.risked >= BRI.riscoMin && liquido >= BRI.liquidoMin &&
@@ -4567,6 +4605,9 @@ function classify(i) {
 
   const anterior = i > 0 ? S.moves[i - 1] : null;
   const sac = sacrificeInfo(S.fens[i + 1], color);
+  const recaptura = !!(mv.captured && anterior && anterior.captured && anterior.to === mv.to);
+  // só as retomadas precisam do lance nulo, então ele quase nunca roda
+  const sacPrevio = recaptura && sac.risked > 0 ? ofertaAnterior(S.fens[i], color, sac.square) : 0;
   const cls = classifyMove({
     legal: mv.legalCount,
     isBest: !!(posB.best && posB.best.toLowerCase() === mv.uci.toLowerCase()),
@@ -4574,7 +4615,8 @@ function classify(i) {
     gapSegundo: posB.secondWin != null ? winBefore - posB.secondWin : null,
     sac,
     capturado: mv.captured,
-    recaptura: !!(mv.captured && anterior && anterior.captured && anterior.to === mv.to),
+    recaptura,
+    sacPrevio,
   });
 
   return { cls, loss, accuracy: acc, winBefore, winAfter, sacRisked: sac.risked };

@@ -43,12 +43,12 @@ Para não julgar o próprio trabalho no olho, o detector foi calibrado contra o 
 | Chess.com *(gabarito)* | 100 / 100 |
 | Chessigma | 93 / 100 |
 | Chessiro | 90 / 100 |
-| **Plyscope** | **87 / 100** |
+| **Plyscope** | **93 / 100** |
 | WintrChess | 45 / 100 |
 | Chessitup | 41 / 100 |
 | Chesskit | 23 / 100 |
 
-Achar brilhante é fácil se você distribuir confete. Por isso a segunda medição, a que importa tanto quanto: em **8 partidas completas — 416 lances** — o Plyscope encontrou todos os brilhantes do gabarito e marcou **3 lances extras**. É um detector conservador.
+Achar brilhante é fácil se você distribuir confete. Por isso a segunda medição, a que importa tanto quanto: em **8 partidas completas — 416 lances comuns** — o Plyscope marcou **4 lances extras** além dos do gabarito. É um detector conservador.
 
 Um lance só recebe o selo depois de passar por quatro perguntas:
 

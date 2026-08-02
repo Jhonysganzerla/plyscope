@@ -50,12 +50,12 @@ O detector foi calibrado contra o **Brilliant Move Benchmark** — os 100 lances
 |---|---|
 | Chess.com (gabarito) | 100 / 100 |
 | Chessigma | 93 / 100 |
-| **Plyscope** | **87 / 100** |
+| **Plyscope** | **93 / 100** |
 | Chessiro | 90 / 100 |
 | WintrChess | 45 / 100 |
 | Chesskit | 23 / 100 |
 
-Em 8 partidas completas (416 lances), o app achou os 8 brilhantes do gabarito e marcou 3 lances extras — ou seja, não distribui confete.
+Em 8 partidas completas (416 lances comuns), o app marcou 4 lances extras além dos do gabarito — ou seja, não distribui confete.
 
 Um lance só recebe o selo quando passa por quatro perguntas, as mesmas que separam sacrifício de erro:
 

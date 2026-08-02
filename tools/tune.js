@@ -21,10 +21,11 @@ function loadPure() {
 }
 const P = loadPure();
 
-/* ---- enriquece com "recaptura" ---- */
+/* ---- enriquece com "recaptura" (o calibrar já grava; isto cobre cache antigo) ---- */
 const bench = JSON.parse(fs.readFileSync(BENCH, "utf8"));
 const porJogo = new Map(bench.map((b) => [b.gameId + ":" + b.ply, b]));
 const rec = JSON.parse(fs.readFileSync(path.join(OUT,"recall.json"), "utf8")).map((l) => {
+  if (l.recaptura !== undefined) return l;
   const b = porJogo.get(l.gameId + ":" + l.ply);
   let recaptura = false;
   if (b && b.pgn) {
@@ -39,6 +40,7 @@ const rec = JSON.parse(fs.readFileSync(path.join(OUT,"recall.json"), "utf8")).ma
 });
 const jogos = JSON.parse(fs.readFileSync(path.join(OUT,"jogos.json"), "utf8"));
 for (let i = 0; i < jogos.length; i++) {
+  if (jogos[i].recaptura !== undefined) continue;
   const p = jogos[i - 1];
   jogos[i].recaptura = !!(jogos[i].capturado && p && p.gameId === jogos[i].gameId &&
     p.capturado && p.uci.slice(2, 4) === jogos[i].uci.slice(2, 4));
