@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<title>Plyscope · Análise de Xadrez</title>
+<title data-i18n="app.titulo">Plyscope · Análise de Xadrez</title>
 <meta name="description" content="Plyscope — cada lance sob a lupa: revisão de partidas de xadrez com Stockfish, 100% no seu navegador.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Plyscope · Cada lance sob a lupa">
@@ -181,6 +181,11 @@ h3.sub{
 .ctl-k{font-size:10.5px;font-weight:650;letter-spacing:.11em;text-transform:uppercase;color:var(--tx-3)}
 .ctl select{width:auto;min-width:150px}
 .tool-sep{width:1px;height:20px;background:var(--line);margin:0 2px}
+
+/* seletor de idioma: dois selos discretos, do tamanho de um rótulo */
+.langsel .btn{width:34px;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--tx-3)}
+.langsel .btn:hover{color:var(--tx-2);background:rgba(255,255,255,.03)}
+.langsel .btn.on{background:var(--surface-3);color:var(--tx)}
 
 .workspace{
   display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w);
@@ -464,6 +469,7 @@ h3.sub{
   .toolbar::-webkit-scrollbar{display:none}
   #btnAnalyze{order:-1}
   .ctl{order:1}
+  .langsel{order:2}
   .ctl-k{display:none}
   .ctl select{min-width:130px}
   .workspace{display:block;padding:0;overflow:visible}
@@ -497,25 +503,30 @@ h3.sub{
       <span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="12.5" fill="none" stroke="var(--tx-3)" stroke-width="2"/><rect x="9.5" y="16" width="6.5" height="6.5" fill="var(--tx)"/><rect x="16" y="9.5" width="6.5" height="6.5" fill="var(--accent)"/></svg></span>
       <span class="brand-txt">
         <b>Plyscope</b>
-        <span>Cada lance sob a lupa · motor local</span>
+        <span data-i18n="marca.tagline">Cada lance sob a lupa · motor local</span>
       </span>
     </div>
 
     <div class="toolbar">
+      <div class="btn-group langsel" id="langSel" role="group" data-i18n-aria="idioma.grupo" aria-label="Idioma da interface">
+        <button class="btn" id="btnLangPt" data-lang="pt" data-i18n-title="idioma.pt" title="Ver a interface em português do Brasil">PT</button>
+        <button class="btn" id="btnLangEn" data-lang="en" data-i18n-title="idioma.en" title="Ver a interface em inglês">EN</button>
+      </div>
+      <span class="tool-sep"></span>
       <label class="ctl" for="depth">
-        <span class="ctl-k">Profundidade</span>
-        <select id="depth" title="Profundidade da análise">
-          <option value="12">Rápida · prof. 12</option>
-          <option value="16" selected>Padrão · prof. 16</option>
-          <option value="20">Profunda · prof. 20</option>
+        <span class="ctl-k" data-i18n="topo.profundidade">Profundidade</span>
+        <select id="depth" data-i18n-title="topo.profundidade.dica" title="Profundidade da análise">
+          <option value="12" data-i18n="prof.12">Rápida · prof. 12</option>
+          <option value="16" selected data-i18n="prof.16">Padrão · prof. 16</option>
+          <option value="20" data-i18n="prof.20">Profunda · prof. 20</option>
         </select>
       </label>
       <span class="tool-sep"></span>
-      <button class="btn icon" id="btnFlip" title="Girar tabuleiro (F)" aria-label="Girar tabuleiro">
+      <button class="btn icon" id="btnFlip" data-i18n-title="btn.girar" title="Girar tabuleiro (F)" data-i18n-aria="btn.girar.aria" aria-label="Girar tabuleiro">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21V5m0 0L4 8m3-3 3 3M17 3v16m0 0 3-3m-3 3-3-3"/></svg>
       </button>
-      <button class="btn" id="btnNew">Nova partida</button>
-      <button class="btn primary" id="btnAnalyze" disabled>Analisar partida</button>
+      <button class="btn" id="btnNew" data-i18n="btn.nova">Nova partida</button>
+      <button class="btn primary" id="btnAnalyze" disabled data-i18n="btn.analisar">Analisar partida</button>
     </div>
   </header>
 
@@ -525,7 +536,7 @@ h3.sub{
     <section class="stage">
       <div class="nameplate">
         <span class="dot" id="dotTop"></span>
-        <span class="nm" id="nmTop">Pretas</span>
+        <span class="nm" id="nmTop" data-i18n="lado.pretas">Pretas</span>
         <span class="el" id="elTop"></span>
         <span class="acc" id="accTop" style="display:none"></span>
       </div>
@@ -549,49 +560,49 @@ h3.sub{
 
       <div class="nameplate">
         <span class="dot" id="dotBot" style="background:#e9e6df"></span>
-        <span class="nm" id="nmBot">Brancas</span>
+        <span class="nm" id="nmBot" data-i18n="lado.brancas">Brancas</span>
         <span class="el" id="elBot"></span>
         <span class="acc" id="accBot" style="display:none"></span>
       </div>
 
       <div class="explore-bar" id="exploreBar">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V9a3 3 0 0 1 3-3h9"/><path d="m15 3 3 3-3 3"/></svg>
-        <span>Explorando variação</span>
-        <button class="btn ghost sm" id="btnBackToGame">Voltar à partida</button>
+        <span data-i18n="explorar.titulo">Explorando variação</span>
+        <button class="btn ghost sm" id="btnBackToGame" data-i18n="explorar.voltar">Voltar à partida</button>
       </div>
 
       <div class="controls">
         <div class="btn-group">
-          <button class="btn" id="btnStart" title="Início (Home)" aria-label="Início">
+          <button class="btn" id="btnStart" data-i18n-title="btn.inicio" title="Início (Home)" data-i18n-aria="btn.inicio.aria" aria-label="Início">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5.4v13.2L8.6 12z"/><rect x="5.6" y="5.4" width="2" height="13.2" rx=".7"/></svg>
           </button>
-          <button class="btn" id="btnPrev" title="Anterior (seta esquerda)" aria-label="Lance anterior">
+          <button class="btn" id="btnPrev" data-i18n-title="btn.anterior" title="Anterior (seta esquerda)" data-i18n-aria="btn.anterior.aria" aria-label="Lance anterior">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5.4v13.2L6.6 12z"/></svg>
           </button>
-          <button class="btn play" id="btnPlay" title="Passar os lances automaticamente (espaço)" aria-label="Reproduzir a partida">
+          <button class="btn play" id="btnPlay" title="Passar os lances automaticamente (espaço)" data-i18n-aria="btn.play.aria" aria-label="Reproduzir a partida">
             <svg viewBox="0 0 24 24" aria-hidden="true" id="icoPlay"><path d="M7.5 4.8v14.4L19 12z"/></svg>
             <svg viewBox="0 0 24 24" aria-hidden="true" id="icoPause" style="display:none"><rect x="6.6" y="5" width="3.8" height="14" rx="1"/><rect x="13.6" y="5" width="3.8" height="14" rx="1"/></svg>
           </button>
-          <button class="btn" id="btnNext" title="Próximo (seta direita)" aria-label="Próximo lance">
+          <button class="btn" id="btnNext" data-i18n-title="btn.proximo" title="Próximo (seta direita)" data-i18n-aria="btn.proximo.aria" aria-label="Próximo lance">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.4v13.2L17.4 12z"/></svg>
           </button>
-          <button class="btn" id="btnEnd" title="Fim (End)" aria-label="Fim">
+          <button class="btn" id="btnEnd" data-i18n-title="btn.fim" title="Fim (End)" data-i18n-aria="btn.fim.aria" aria-label="Fim">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5.4v13.2L15.4 12z"/><rect x="16.4" y="5.4" width="2" height="13.2" rx=".7"/></svg>
           </button>
         </div>
-        <select id="speed" class="speed" title="Velocidade da reprodução" aria-label="Velocidade">
-          <option value="600">0,6 s</option>
-          <option value="1200" selected>1,2 s</option>
-          <option value="2000">2 s</option>
-          <option value="3500">3,5 s</option>
+        <select id="speed" class="speed" data-i18n-title="velocidade.dica" title="Velocidade da reprodução" data-i18n-aria="velocidade.aria" aria-label="Velocidade">
+          <option value="600" data-i18n="vel.600">0,6 s</option>
+          <option value="1200" selected data-i18n="vel.1200">1,2 s</option>
+          <option value="2000" data-i18n="vel.2000">2 s</option>
+          <option value="3500" data-i18n="vel.3500">3,5 s</option>
         </select>
         <span class="sp"></span>
-        <button class="btn icon" id="btnSound" title="Som (M)" aria-label="Ligar ou desligar o som">
+        <button class="btn icon" id="btnSound" data-i18n-title="btn.som" title="Som (M)" data-i18n-aria="btn.som.aria" aria-label="Ligar ou desligar o som">
           <svg viewBox="0 0 24 24" aria-hidden="true" id="icoSoundOn"><path d="M5 9.5h3l4.5-3.6v12.2L8 14.5H5z"/><path d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.6a7.6 7.6 0 0 1 0 10.8"/></svg>
           <svg viewBox="0 0 24 24" aria-hidden="true" id="icoSoundOff" style="display:none"><path d="M5 9.5h3l4.5-3.6v12.2L8 14.5H5z"/><path d="m16.5 9.5 5 5m0-5-5 5"/></svg>
         </button>
-        <button class="btn sm" id="btnCopyFen" title="Copiar FEN da posição">FEN</button>
-        <button class="btn sm" id="btnCopyPgn" title="Copiar PGN da partida">PGN</button>
+        <button class="btn sm" id="btnCopyFen" data-i18n-title="btn.fen" title="Copiar FEN da posição">FEN</button>
+        <button class="btn sm" id="btnCopyPgn" data-i18n-title="btn.pgn" title="Copiar PGN da partida">PGN</button>
       </div>
     </section>
 
@@ -600,7 +611,7 @@ h3.sub{
 
       <div class="panel status" id="panelStatus" style="display:none">
         <div class="status-head">
-          <b id="statusTitle">Analisando…</b>
+          <b id="statusTitle" data-i18n="status.analisando">Analisando…</b>
           <span id="statusPct">0%</span>
         </div>
         <div class="prog"><i id="progBar"></i></div>
@@ -609,44 +620,44 @@ h3.sub{
 
       <div class="panel panel-main">
         <div class="tabs">
-          <button data-tab="import" class="on">Importar</button>
-          <button data-tab="report">Relatório</button>
-          <button data-tab="moves">Lances</button>
-          <button data-tab="engine">Motor</button>
+          <button data-tab="import" class="on" data-i18n="aba.importar">Importar</button>
+          <button data-tab="report" data-i18n="aba.relatorio">Relatório</button>
+          <button data-tab="moves" data-i18n="aba.lances">Lances</button>
+          <button data-tab="engine" data-i18n="aba.motor">Motor</button>
         </div>
 
         <!-- IMPORTAR -->
         <div class="tabpane on" id="tab-import">
           <div class="pad">
             <div class="field">
-              <label for="pgnBox">PGN da partida</label>
+              <label for="pgnBox" data-i18n="import.pgnLabel">PGN da partida</label>
               <textarea id="pgnBox" spellcheck="false" placeholder="[Event &quot;...&quot;]&#10;1. e4 e5 2. Nf3 Nc6 ..."></textarea>
-              <span class="help">Cole o texto completo. Vários jogos no mesmo PGN viram uma lista.</span>
+              <span class="help" data-i18n="import.pgnAjuda">Cole o texto completo. Vários jogos no mesmo PGN viram uma lista.</span>
             </div>
             <div class="row">
-              <button class="btn primary grow" id="btnLoadPgn">Carregar PGN</button>
-              <button class="btn" id="btnPickFile">Arquivo .pgn</button>
+              <button class="btn primary grow" id="btnLoadPgn" data-i18n="import.carregar">Carregar PGN</button>
+              <button class="btn" id="btnPickFile" data-i18n="import.arquivo">Arquivo .pgn</button>
               <input type="file" id="fileInput" accept=".pgn,.txt" style="display:none">
             </div>
             <div class="drop" id="drop">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-              <span>arraste um arquivo .pgn aqui</span>
+              <span data-i18n="import.arraste">arraste um arquivo .pgn aqui</span>
             </div>
 
-            <h3 class="sub">Análises salvas</h3>
-            <div class="hint" id="savedHint">As análises ficam guardadas neste navegador.</div>
+            <h3 class="sub" data-i18n="salvas.titulo">Análises salvas</h3>
+            <div class="hint" id="savedHint" data-i18n="salvas.dica">As análises ficam guardadas neste navegador.</div>
             <div class="gamelist" id="savedList"></div>
 
-            <h3 class="sub">Buscar partidas online</h3>
+            <h3 class="sub" data-i18n="buscar.titulo">Buscar partidas online</h3>
             <div class="row">
               <select id="site" style="width:132px;flex:0 0 132px">
                 <option value="chesscom">Chess.com</option>
                 <option value="lichess">Lichess</option>
               </select>
-              <input type="text" id="userBox" placeholder="seu usuário" autocomplete="off" spellcheck="false">
-              <button class="btn" id="btnFetch">Buscar</button>
+              <input type="text" id="userBox" data-i18n-placeholder="buscar.usuario" placeholder="seu usuário" autocomplete="off" spellcheck="false">
+              <button class="btn" id="btnFetch" data-i18n="buscar.botao">Buscar</button>
             </div>
-            <div class="hint" id="fetchHint" style="margin-top:9px">Traz suas últimas partidas públicas. Sem login, sem custo.</div>
+            <div class="hint" id="fetchHint" style="margin-top:9px" data-i18n="buscar.dica">Traz suas últimas partidas públicas. Sem login, sem custo.</div>
             <div class="gamelist" id="gameList"></div>
           </div>
         </div>
@@ -656,16 +667,16 @@ h3.sub{
           <div class="pad" id="reportBody">
             <div class="empty">
               <span class="rule"></span>
-              <strong>Relatório da partida</strong>
-              Carregue um PGN e clique em <b>Analisar partida</b> para ver precisão, classificação de cada lance e os momentos decisivos.
+              <strong data-i18n="rel.vazio.titulo">Relatório da partida</strong>
+              <span data-i18n-html="rel.vazio.texto">Carregue um PGN e clique em <b>Analisar partida</b> para ver precisão, classificação de cada lance e os momentos decisivos.</span>
             </div>
           </div>
           <div class="pad" id="exportRow" style="display:none;padding-top:0">
             <div class="row">
-              <button class="btn grow" id="btnExportPgn" title="Baixar a partida com avaliação e classificação em comentários">PGN comentado</button>
-              <button class="btn grow" id="btnExportPng" title="Baixar o relatório como imagem PNG">Imagem do relatório</button>
+              <button class="btn grow" id="btnExportPgn" data-i18n-title="export.pgn.dica" title="Baixar a partida com avaliação e classificação em comentários" data-i18n="export.pgn">PGN comentado</button>
+              <button class="btn grow" id="btnExportPng" data-i18n-title="export.png.dica" title="Baixar o relatório como imagem PNG" data-i18n="export.png">Imagem do relatório</button>
             </div>
-            <p class="hint" style="margin-top:9px">
+            <p class="hint" style="margin-top:9px" data-i18n-html="export.nota">
               O <b>.pgn</b> abre no Lichess, Chess.com e SCID com os selos e as avaliações. O <b>.png</b> é o resumo para compartilhar.
             </p>
           </div>
@@ -676,8 +687,8 @@ h3.sub{
           <div class="moves" id="movesBody">
             <div class="empty" style="padding-left:8px">
               <span class="rule"></span>
-              <strong>Nenhuma partida carregada</strong>
-              Importe um PGN para navegar lance a lance.
+              <strong data-i18n="lances.vazio.titulo">Nenhuma partida carregada</strong>
+              <span data-i18n="lances.vazio.texto">Importe um PGN para navegar lance a lance.</span>
             </div>
           </div>
         </div>
@@ -688,23 +699,23 @@ h3.sub{
             <div id="engineLines" class="pv">
               <div class="empty">
                 <span class="rule"></span>
-                <strong>Motor ocioso</strong>
-                Analise a partida ou avalie só esta posição para ver as melhores linhas.
+                <strong data-i18n="motor.vazio.titulo">Motor ocioso</strong>
+                <span data-i18n="motor.vazio.texto">Analise a partida ou avalie só esta posição para ver as melhores linhas.</span>
               </div>
             </div>
             <div class="row" style="margin-top:14px">
-              <button class="btn grow" id="btnDeep">Analisar esta posição a fundo</button>
-              <button class="btn" id="btnStopDeep" style="display:none">Parar</button>
+              <button class="btn grow" id="btnDeep" data-i18n="motor.fundo">Analisar esta posição a fundo</button>
+              <button class="btn" id="btnStopDeep" style="display:none" data-i18n="motor.parar">Parar</button>
             </div>
             <p class="hint" style="margin-top:12px">
-              <span id="engineMode">Stockfish 17.1 lite</span> roda <b>no seu computador</b>. Nenhuma posição é enviada para servidores.
+              <span id="engineMode">Stockfish 17.1 lite</span> <span data-i18n-html="motor.nota">roda <b>no seu computador</b>. Nenhuma posição é enviada para servidores.</span>
             </p>
           </div>
         </div>
       </div>
 
       <section class="legend">
-        <h3>Legenda</h3>
+        <h3 data-i18n="legenda.titulo">Legenda</h3>
         <div class="badge-legend" id="legend"></div>
       </section>
 
@@ -723,6 +734,9 @@ h3.sub{
 </script>
 <script>
 /*__OPENINGS__*/
+</script>
+<script>
+/*__I18N__*/
 </script>
 <script>
 /*__APP__*/

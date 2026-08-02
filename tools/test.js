@@ -52,7 +52,21 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
   await wait(300);
-  console.log("== carregando PGN ==");
+
+  /* O jsdom se apresenta como en-US, então o app abre em inglês. O teste
+     analisa em português e só depois troca de idioma, que é o percurso a
+     conferir; a escolha fica guardada no localStorage como a de um usuário. */
+  console.log("== idioma ==");
+  console.log("navigator.language:", window.navigator.language,
+    "| idioma deduzido:", window.document.documentElement.lang,
+    "| botão analisar:", $("btnAnalyze").textContent.trim());
+  $("btnLangPt").click();
+  await wait(50);
+  const ROTULO_ANALISAR = $("btnAnalyze").textContent;
+  console.log("depois de escolher PT:", window.document.documentElement.lang,
+    "|", ROTULO_ANALISAR, "| guardado:", window.localStorage.getItem("plyscope.idioma"));
+
+  console.log("\n== carregando PGN ==");
   $("pgnBox").value = PGN;
   $("btnLoadPgn").click();
   await wait(200);
@@ -67,7 +81,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   $("btnAnalyze").click();
 
   const t0 = Date.now();
-  while ($("btnAnalyze").textContent !== "Analisar partida" && Date.now() - t0 < 600000) await wait(1000);
+  while ($("btnAnalyze").textContent !== ROTULO_ANALISAR && Date.now() - t0 < 600000) await wait(1000);
   console.log("tempo total:", ((Date.now() - t0) / 1000).toFixed(1) + "s");
 
   console.log("\n== relatório ==");
@@ -148,6 +162,106 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("itens na lista de salvas:", itens.length, "|",
     (itens[0] || { textContent: "" }).textContent.replace(/\s+/g, " ").trim());
 
+  /* ================= troca de idioma com a análise na tela ================= */
+  console.log("\n== troca de idioma (com análise aberta) ==");
+  const txt1 = (el) => (el || { textContent: "" }).textContent.replace(/\s+/g, " ").trim();
+  const foto = () => ({
+    lang:      window.document.documentElement.lang,
+    titulo:    window.document.title,
+    tagline:   txt1(window.document.querySelector(".brand-txt span")),
+    analisar:  txt1($("btnAnalyze")),
+    nova:      txt1($("btnNew")),
+    prof:      [...$("depth").options].map((o) => o.text).join("|"),
+    profVal:   $("depth").value,
+    vel:       [...$("speed").options].map((o) => o.text).join("|"),
+    velVal:    $("speed").value,
+    abas:      [...window.document.querySelectorAll(".tabs button")].map((b) => b.textContent.trim()).join("|"),
+    abertura:  txt1(window.document.querySelector(".opening .nm")),
+    teoria:    txt1(window.document.querySelector(".opening .hint")),
+    relLbl:    [...window.document.querySelectorAll(".report-grid .lbl")].map((e) => e.textContent.trim()).join(", "),
+    relUnid:   txt1(window.document.querySelector(".accbox .u")),
+    precisao:  [...window.document.querySelectorAll(".accbox .v")].map((e) => e.textContent.trim()).join(" / "),
+    momentos:  [...window.document.querySelectorAll("[data-goto] .hint")].map((e) => e.textContent.trim()).join(" | "),
+    grafico:   txt1(window.document.querySelector(".caption")),
+    selos:     [...window.document.querySelectorAll(".mv .ic title")].map((e) => e.textContent.trim()),
+    nSelos:    window.document.querySelectorAll(".mv .ic").length,
+    san:       [...window.document.querySelectorAll(".mv span:not(.ev)")].map((e) => e.textContent.trim()).join(" "),
+    ply:       (window.document.querySelector(".mv.on") || { dataset: {} }).dataset.ply,
+    legenda:   $("legend").textContent.replace(/\s+/g, " ").trim(),
+    capiTip:   ([...$("legend").querySelectorAll("span")].pop() || { getAttribute: () => "" }).getAttribute("title"),
+    salvasDica: txt1($("savedHint")),
+    salvasItem: txt1($("savedList")),
+    exportar:  txt1($("btnExportPgn")) + " / " + txt1($("btnExportPng")),
+    motorAba:  txt1($("engineLines")).slice(0, 60),
+  });
+
+  const pt1 = foto();
+  $("btnLangEn").click(); await wait(150);
+  const en = foto();
+
+  const par = (rot, a, b) => console.log("  " + (rot + ":").padEnd(15), a, "\n" + " ".repeat(18) + "→", b);
+  par("html lang", pt1.lang, en.lang);
+  par("title", pt1.titulo, en.titulo);
+  par("topo", pt1.tagline + " · " + pt1.analisar + " · " + pt1.nova,
+              en.tagline + " · " + en.analisar + " · " + en.nova);
+  par("profundidade", pt1.prof, en.prof);
+  par("velocidade", pt1.vel, en.vel);
+  par("abas", pt1.abas, en.abas);
+  par("abertura", pt1.abertura + " · " + pt1.teoria, en.abertura + " · " + en.teoria);
+  par("relatório", pt1.relLbl, en.relLbl);
+  par("unidade", pt1.relUnid, en.relUnid);
+  par("gráfico", pt1.grafico, en.grafico);
+  par("momento nº1", pt1.momentos.split(" | ")[0] || "(a partida não tem)",
+                     en.momentos.split(" | ")[0] || "(a partida não tem)");
+  par("selos (6)", pt1.selos.slice(0, 6).join(" "), en.selos.slice(0, 6).join(" "));
+  par("legenda", pt1.legenda, en.legenda);
+  par("salvas", pt1.salvasDica.slice(0, 46) + "…", en.salvasDica.slice(0, 46) + "…");
+  par("salvas (item)", pt1.salvasItem, en.salvasItem);
+  par("exportar", pt1.exportar, en.exportar);
+
+  const mudou = (a, b) => !!a && !!b && a !== b;
+  console.log("  TOPO mudou:", mudou(pt1.titulo, en.titulo) && mudou(pt1.tagline, en.tagline) &&
+    mudou(pt1.analisar, en.analisar) && mudou(pt1.nova, en.nova) && mudou(pt1.prof, en.prof) &&
+    mudou(pt1.vel, en.vel), "| <html lang>:", pt1.lang, "→", en.lang);
+  console.log("  ABAS mudaram:", mudou(pt1.abas, en.abas));
+  console.log("  RELATÓRIO mudou:", mudou(pt1.relLbl, en.relLbl) && mudou(pt1.relUnid, en.relUnid) &&
+    mudou(pt1.grafico, en.grafico) && mudou(pt1.abertura, en.abertura),
+    "| momentos decisivos:", pt1.momentos ? mudou(pt1.momentos, en.momentos) : "(esta partida não tem)");
+  console.log("  SELOS DA LISTA mudaram:", mudou(pt1.selos.join("|"), en.selos.join("|")));
+  console.log("  ANÁLISES SALVAS mudaram:", mudou(pt1.salvasDica, en.salvasDica) && mudou(pt1.salvasItem, en.salvasItem));
+  console.log("  Capivarada nas duas línguas:",
+    /Capivarada/.test(pt1.legenda) && /Capivarada/.test(en.legenda),
+    "| tooltip pt:", JSON.stringify(pt1.capiTip), "| en:", JSON.stringify(en.capiTip));
+
+  console.log("  ANÁLISE INTACTA — selos:", pt1.nSelos, "→", en.nSelos,
+    "| SAN idêntico:", pt1.san === en.san,
+    "| lance selecionado:", pt1.ply === en.ply,
+    "| momentos decisivos:", pt1.momentos.split(" | ").length === en.momentos.split(" | ").length);
+  console.log("  mesma precisão, formato de cada língua:", pt1.precisao, "→", en.precisao,
+    "|", pt1.precisao.replace(/,/g, ".") === en.precisao && pt1.precisao !== en.precisao);
+  console.log("  seleções preservadas — profundidade:", pt1.profVal === en.profVal, en.profVal,
+    "| velocidade:", pt1.velVal === en.velVal, en.velVal);
+
+  // sobras: palavras que não podem sobrar na tela em modo inglês
+  const RESTOS = ["precisão", "Precisão", "análise", "Análise", "Partida", "partida", "lance",
+                  "Brancas", "Pretas", "Relatório", "Importar", "Nenhuma", "perdeu", "teoria",
+                  "Momentos", "Legenda", "Buscar", "Carregar", "Apagar", "Voltar", "Analisar"];
+  const naTela = window.document.querySelector(".app").textContent.replace(/\s+/g, " ");
+  const sobras = RESTOS.filter((w) => naTela.indexOf(w) >= 0);
+  console.log("  sobras em português na tela em inglês:", sobras.length ? sobras.join(", ") : "(nenhuma)");
+
+  $("btnLangPt").click(); await wait(150);
+  const pt2 = foto();
+  const voltou = JSON.stringify(pt1) === JSON.stringify(pt2);
+  console.log("  de volta ao português, tela idêntica à de antes:", voltou);
+  if (!voltou) {
+    Object.keys(pt1).forEach((k) => {
+      if (JSON.stringify(pt1[k]) !== JSON.stringify(pt2[k]))
+        console.log("    difere:", k, JSON.stringify(pt1[k]), "≠", JSON.stringify(pt2[k]));
+    });
+  }
+  console.log("  idioma guardado:", window.localStorage.getItem("plyscope.idioma"));
+
   // limpa a tela recarregando o PGN cru: sem selos, sem precisão
   $("btnLoadPgn").click(); await wait(200);
   const selosAntes = window.document.querySelectorAll(".mv .ic").length;
@@ -202,6 +316,19 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("--- início dos lances ---");
   console.log((pgnAnot.split("\n\n")[1] || "").split("\n").slice(0, 6).join("\n"));
   console.log("---");
+
+  // os comentários seguem o idioma ativo; notação e NAG não
+  $("btnLangEn").click(); await wait(80);
+  capturado = null;
+  $("btnExportPgn").click(); await wait(100);
+  const pgnEn = capturado ? capturado.partes.join("") : "";
+  console.log("exportado em inglês — comentário de erro:",
+    /\{ \[%eval [^\]]+\] (Inaccuracy|Mistake|Capivarada)[^}]*gave up \d+% winning chances/.test(pgnEn));
+  console.log("  NAGs idênticos:", (pgnEn.match(/\$\d+/g) || []).join(" ") === nags.join(" "),
+    "| lances idênticos:",
+    (pgnEn.replace(/\{[^}]*\}/g, "").replace(/\s+/g, " ")) === (pgnAnot.replace(/\{[^}]*\}/g, "").replace(/\s+/g, " ")));
+  console.log("  amostra:", (pgnEn.match(/\{[^}]*(gave up|better was)[^}]*\}/) || ["(nenhuma)"])[0]);
+  $("btnLangPt").click(); await wait(80);
   window.Blob = BlobReal;
 
   /* ================= exportar imagem ================= */
@@ -236,8 +363,10 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const txt = desenho.textos.join(" | ");
   console.log("mostra nome do app:", /Plyscope/.test(txt),
     "| os dois jogadores:", txt.indexOf("Paul Morphy") >= 0 && /Duque Karl/.test(txt),
-    "| precisão:", /precisão \(%\)/.test(txt) && txt.indexOf("96.2") >= 0 && txt.indexOf("83.0") >= 0,
+    "| precisão:", /precisão \(%\)/.test(txt) && /\b96,2\b/.test(txt) && /\b83,0\b/.test(txt),
     "| tipos de lance:", /Brilhante/.test(txt) && /Impreciso/.test(txt));
+  console.log("números e data no formato pt-BR:", /96,2/.test(txt) && /02\/11\/1858/.test(txt),
+    "| trechos:", (txt.match(/9\d,\d|8\d,\d|\d\d\/\d\d\/\d{4}/g) || []).join(" "));
 
   /* ================= armazenamento com problema ================= */
   console.log("\n== armazenamento recusando gravação ==");

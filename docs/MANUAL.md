@@ -86,6 +86,14 @@ O seletor no topo controla a análise:
 
 Em todos os casos há uma **segunda passada** automática: lances suspeitos (erros aparentes e sacrifícios) são reavaliados com 6 níveis a mais de profundidade, o que evita tanto "erros" falsos quanto brilhantes perdidos por análise rasa.
 
+## Idioma
+
+Os botões **`PT`** e **`EN`**, no canto do topo, trocam a interface entre português do Brasil e inglês. A troca é imediata: a página não recarrega e a análise que estiver aberta continua exatamente como estava — o relatório, os selos, o gráfico e as análises salvas apenas mudam de rótulo. Números e datas acompanham a língua (`96,2%` e `02/11/1858` em português, `96.2%` e `11/02/1858` em inglês); notação de xadrez e nomes de jogadores, não.
+
+Na primeira vez o app segue o idioma do navegador; depois disso vale a sua escolha, que fica guardada.
+
+Em inglês os selos são *Brilliant, Great, Best, Excellent, Good, Forced, Inaccuracy* e *Mistake* — só a **Capivarada** continua Capivarada, com o significado (*blunder*) no tooltip.
+
 ## Um thread ou vários
 
 O app traz dois motores iguais em força e diferentes em velocidade, e escolhe sozinho ao abrir:

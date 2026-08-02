@@ -6,19 +6,42 @@
 const $ = (id) => document.getElementById(id);
 const Chess = window.Chess;
 
-/* ---------- classificações ---------- */
+/* ---------- idioma (dicionário em src/i18n.js) ----------
+   Atalhos curtos porque aparecem em quase toda linha de interface.
+   tr() traduz; fmtNum/fmtPct/fmtSeg/fmtData escrevem número, porcentagem,
+   tempo e data no formato da língua ativa (1,2 s × 1.2s, 96,2% × 96.2%). */
+const I18 = window.PlyI18n;
+const tr      = (k, p) => I18.t(k, p);
+const fmtNum  = (v, casas) => I18.num(v, casas);
+const fmtPct  = (v, casas) => I18.pct(v, casas);
+const fmtSeg  = (v, casas) => I18.seg(v, casas);
+const fmtData = (s) => I18.data(s);
+
+/* ---------- classificações ----------
+   As chaves (brilhante, capivarada…) são identidade interna e vão para o
+   armazenamento e para os NAG do PGN: não mudam com o idioma. O nome que
+   aparece na tela vem do dicionário, por clsNome(). "Capivarada" é o nome
+   do selo nas duas línguas — em inglês o significado vai no tooltip. */
 const CLS = {
-  brilhante : { nome:"Brilhante",  cor:"#26c2a3", sym:"!!", ord:0 },
-  excelente : { nome:"Excelente",  cor:"#5b8bb0", sym:"!",  ord:1 },
-  melhor    : { nome:"Melhor",     cor:"#81b64c", sym:"★",  ord:2 },
-  otimo     : { nome:"Ótimo",      cor:"#95bb4a", sym:"✓",  ord:3 },
-  bom       : { nome:"Bom",        cor:"#96af8b", sym:"✓",  ord:4 },
-  forcado   : { nome:"Forçado",    cor:"#8b8987", sym:"=",  ord:5 },
-  impreciso : { nome:"Impreciso",  cor:"#f7c631", sym:"?!", ord:6 },
-  erro      : { nome:"Erro",       cor:"#ffa459", sym:"?",  ord:7 },
-  capivarada: { nome:"Capivarada", cor:"#fa412d", sym:"??", ord:8 },
+  brilhante : { cor:"#26c2a3", sym:"!!", ord:0 },
+  excelente : { cor:"#5b8bb0", sym:"!",  ord:1 },
+  melhor    : { cor:"#81b64c", sym:"★",  ord:2 },
+  otimo     : { cor:"#95bb4a", sym:"✓",  ord:3 },
+  bom       : { cor:"#96af8b", sym:"✓",  ord:4 },
+  forcado   : { cor:"#8b8987", sym:"=",  ord:5 },
+  impreciso : { cor:"#f7c631", sym:"?!", ord:6 },
+  erro      : { cor:"#ffa459", sym:"?",  ord:7 },
+  capivarada: { cor:"#fa412d", sym:"??", ord:8 },
 };
 const CLS_ORDER = Object.keys(CLS).sort((a,b)=>CLS[a].ord-CLS[b].ord);
+const clsNome = (k) => tr("cls." + k);
+/** Nome + significado entre parênteses, quando a língua precisa dele. */
+function clsDica(k) {
+  const extra = I18.opt("cls." + k + ".dica");
+  return extra ? clsNome(k) + " (" + extra + ")" : clsNome(k);
+}
+/** Nome do lado quando o PGN não traz o jogador. */
+const nomeLado = (v, cor) => v || tr(cor === "w" ? "lado.brancas" : "lado.pretas");
 
 /* ---------- estado ---------- */
 const S = {
@@ -166,7 +189,7 @@ const Engine = {
       try { this.w = new Worker(mt ? ENGINE_MT : ENGINE_ST); }
       catch (e) { falhar(e); return; }
       this.w.onerror = (e) => {
-        if (!mt) toast("Falha ao carregar o motor. Abra pelo atalho 'Abrir Analisador'.");
+        if (!mt) toast(tr("motor.falhou"));
         falhar(e);
       };
       const prazo = setTimeout(() => { if (!this.ready) falhar(new Error("tempo esgotado ao iniciar o motor")); }, mt ? 25000 : 90000);
@@ -201,10 +224,10 @@ function notaMotor() {
   let modo;
   if (Engine.ready) {
     modo = Engine.mt
-      ? "multi-thread, " + Engine.threads + " threads"
-      : "1 thread" + (self.crossOriginIsolated ? "" : " — sem isolamento cross-origin");
+      ? tr("motor.mt", { n: Engine.threads })
+      : tr("motor.st") + (self.crossOriginIsolated ? "" : tr("motor.semIsolamento"));
   } else {
-    modo = Engine.erro ? "indisponível" : "carregando…";
+    modo = tr(Engine.erro ? "motor.indisponivel" : "motor.carregando");
   }
   el.textContent = ENGINE_NOME + " (" + modo + ")";
 }
@@ -511,12 +534,13 @@ const ABERTURA_MAX_PLY = 30;   // além disso já não é teoria de abertura
    Pelo mesmo motivo, uma partida que sai do livro e volta a ele mais adiante
    ainda é reconhecida.
    Os cabeçalhos ECO/Opening do PGN entram só como reserva: a base local é
-   consistente entre partidas de qualquer site, está em português e sabe dizer
-   até que lance a teoria foi seguida — o cabeçalho não informa nada disso. */
+   consistente entre partidas de qualquer site, fala as duas línguas do app e
+   sabe dizer até que lance a teoria foi seguida — o cabeçalho não informa nada
+   disso (e vem sempre em inglês). */
 function aberturaDeFens(fens, headers) {
   const Ab = window.Aberturas;
   if (Ab && fens && fens.length > 1) {
-    const r = Ab.detectar(fens, ABERTURA_MAX_PLY);
+    const r = Ab.detectar(fens, ABERTURA_MAX_PLY, I18.idioma());
     if (r) return r;
   }
   const h = headers || {};
@@ -545,9 +569,10 @@ function aberturaTexto(a) {
 
 function aberturaHtml(a) {
   if (!a || (!a.eco && !a.nome)) return "";
-  const ate = a.ply ? `<span class="hint">teoria até o lance ${Math.ceil(a.ply / 2)}</span>` : "";
+  const ate = a.ply
+    ? `<span class="hint">${esc(tr("rel.abertura.teoria", { n: Math.ceil(a.ply / 2) }))}</span>` : "";
   return `<div class="opening">${a.eco ? `<span class="eco">${esc(a.eco)}</span>` : ""}` +
-    `<span class="nm">${esc(a.nome || "abertura fora da base")}</span>${ate}</div>`;
+    `<span class="nm">${esc(a.nome || tr("rel.abertura.fora"))}</span>${ate}</div>`;
 }
 
 /* ============================================================
@@ -558,10 +583,10 @@ function loadPgn(pgn) {
   try { c.loadPgn(pgn.trim(), { strict: false }); }
   catch (e) {
     try { c.loadPgn(pgn.replace(/\{[^}]*\}/g, "").trim(), { strict: false }); }
-    catch (e2) { toast("Não consegui ler esse PGN."); return false; }
+    catch (e2) { toast(tr("toast.pgnIlegivel")); return false; }
   }
   const hist = c.history({ verbose: true });
-  if (!hist.length) { toast("PGN sem lances."); return false; }
+  if (!hist.length) { toast(tr("toast.pgnSemLances")); return false; }
 
   S.headers = c.getHeaders() || {};
   S.moves = []; S.fens = []; S.positions = []; S.perMove = []; S.accuracy = null;
@@ -587,10 +612,7 @@ function loadPgn(pgn) {
   if (typeof pararPlay === "function") pararPlay();
   renderPlayers(); renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
   $("btnAnalyze").disabled = false;
-  $("reportBody").innerHTML = aberturaHtml(S.abertura) +
-    '<div class="empty"><span class="rule"></span><strong>Partida carregada</strong>' +
-    'Clique em <b>Analisar partida</b> para gerar precisão, classificação dos lances e momentos decisivos.</div>';
-  if ($("exportRow")) $("exportRow").style.display = "none";
+  renderReportBody();
   showTab("moves");
   return true;
 }
@@ -598,18 +620,31 @@ function loadPgn(pgn) {
 /* ============================================================
    Análise da partida inteira
    ============================================================ */
+
+/* O painel de status guarda a CHAVE do que está escrito, não o texto pronto:
+   é o que permite reetiquetar o painel na troca de idioma sem inventar estado
+   novo. Os parâmetros podem vir como função quando dependem de formatação
+   (uma porcentagem escrita 96,2% ou 96.2% conforme a língua). */
+let statusAtual = null;
+function pintarStatus() {
+  if (!statusAtual) return;
+  const { tk, tp, mk, mp } = statusAtual;
+  $("statusTitle").textContent = tk ? tr(tk, typeof tp === "function" ? tp() : tp) : "";
+  $("statusMsg").textContent   = mk ? tr(mk, typeof mp === "function" ? mp() : mp) : "";
+}
+function status(tk, tp, mk, mp) { statusAtual = { tk, tp, mk, mp }; pintarStatus(); }
+
 async function analyzeGame() {
   if (S.analyzing) { S.cancel = true; return; }
   if (!S.moves.length) return;
   const depth = +$("depth").value;
   S.analyzing = true; S.cancel = false;
-  $("btnAnalyze").textContent = "Parar análise";
+  $("btnAnalyze").textContent = tr("btn.parar");
   $("panelStatus").style.display = "";
-  $("statusTitle").textContent = "Iniciando o motor…";
-  $("statusMsg").textContent = "Carregando Stockfish (≈7 MB, só na primeira vez).";
+  status("status.iniciando", null, "status.carregando", null);
 
   try { await Engine.boot(); }
-  catch (e) { toast("Não foi possível iniciar o motor."); finishAnalysis(); return; }
+  catch (e) { toast(tr("motor.naoIniciou")); finishAnalysis(); return; }
 
   Engine.post("ucinewgame");
   const total = S.fens.length;
@@ -651,12 +686,12 @@ async function analyzeGame() {
     if (i > 0) { S.perMove[i - 1] = classify(i - 1); renderMoveRow(i - 1); }
 
     const pct = Math.round(((i + 1) / total) * 100);
-    $("statusTitle").textContent = "Analisando lance " + Math.min(i + 1, S.moves.length) + " de " + S.moves.length;
     $("statusPct").textContent = pct + "%";
     $("progBar").style.width = pct + "%";
     const el = (performance.now() - t0) / 1000;
     const eta = i > 2 ? Math.round((el / (i + 1)) * (total - i - 1)) : null;
-    $("statusMsg").textContent = eta != null ? "Tempo restante ≈ " + eta + "s" : "";
+    status("status.lance", { i: Math.min(i + 1, S.moves.length), n: S.moves.length },
+           eta != null ? "status.restante" : null, () => ({ t: fmtSeg(eta) }));
     if (i % 3 === 0) { renderEvalBar(); }
   }
 
@@ -678,8 +713,7 @@ async function analyzeGame() {
     for (const idx of list) {
       if (S.cancel) break;
       k++;
-      $("statusTitle").textContent = "Conferindo momentos decisivos (" + k + "/" + list.length + ")";
-      $("statusMsg").textContent = "Profundidade " + d2;
+      status("status.conferindo", { k, n: list.length }, "status.profundidade", { d: d2 });
       $("progBar").style.width = Math.round((k / list.length) * 100) + "%";
       $("statusPct").textContent = Math.round((k / list.length) * 100) + "%";
       const fen = S.fens[idx];
@@ -709,8 +743,8 @@ async function analyzeGame() {
     salvarAnalise();
     showTab("report");
     Snd.pronto();
-    $("statusTitle").textContent = "Análise concluída";
-    $("statusMsg").textContent = "Precisão — Brancas " + S.accuracy.w.toFixed(1) + "% · Pretas " + S.accuracy.b.toFixed(1) + "%";
+    status("status.concluida", null, "status.precisao",
+           () => ({ w: fmtPct(S.accuracy.w, 1), b: fmtPct(S.accuracy.b, 1) }));
     setTimeout(() => { $("panelStatus").style.display = "none"; }, 3500);
   } else {
     $("panelStatus").style.display = "none";
@@ -720,7 +754,7 @@ async function analyzeGame() {
 }
 function finishAnalysis() {
   S.analyzing = false; S.cancel = false;
-  $("btnAnalyze").textContent = "Analisar partida";
+  $("btnAnalyze").textContent = tr("btn.analisar");
 }
 
 /* ============================================================
@@ -911,8 +945,8 @@ $("btnBackToGame").onclick = () => {
 function renderPlayers() {
   const h = S.headers;
   const top = S.flipped ? "White" : "Black", bot = S.flipped ? "Black" : "White";
-  $("nmTop").textContent = h[top] || (top === "White" ? "Brancas" : "Pretas");
-  $("nmBot").textContent = h[bot] || (bot === "White" ? "Brancas" : "Pretas");
+  $("nmTop").textContent = nomeLado(h[top], top === "White" ? "w" : "b");
+  $("nmBot").textContent = nomeLado(h[bot], bot === "White" ? "w" : "b");
   $("elTop").textContent = h[top + "Elo"] ? "(" + h[top + "Elo"] + ")" : "";
   $("elBot").textContent = h[bot + "Elo"] ? "(" + h[bot + "Elo"] + ")" : "";
   $("dotTop").style.background = top === "White" ? "#e9e6df" : "#2b3037";
@@ -920,8 +954,8 @@ function renderPlayers() {
   if (S.accuracy) {
     const accT = S.accuracy[top === "White" ? "w" : "b"], accB = S.accuracy[bot === "White" ? "w" : "b"];
     $("accTop").style.display = ""; $("accBot").style.display = "";
-    $("accTop").textContent = (accT != null ? accT.toFixed(1) : "–") + "%";
-    $("accBot").textContent = (accB != null ? accB.toFixed(1) : "–") + "%";
+    $("accTop").textContent = fmtPct(accT, 1);
+    $("accBot").textContent = fmtPct(accB, 1);
   } else { $("accTop").style.display = "none"; $("accBot").style.display = "none"; }
 }
 
@@ -945,9 +979,11 @@ function renderEvalBar() {
   else { $("evalWhite").style.top = "auto"; $("evalWhite").style.bottom = "0"; }
 }
 
-function icon(cls, size) {
+/** Selo do lance. `mudo` tira o <title> de quem já mostra o nome ao lado. */
+function icon(cls, size, mudo) {
   const c = CLS[cls];
-  return `<svg class="ic" viewBox="0 0 24 24" width="${size||16}" height="${size||16}">
+  const titulo = mudo ? "" : `<title>${esc(clsDica(cls))}</title>`;
+  return `<svg class="ic" viewBox="0 0 24 24" width="${size||16}" height="${size||16}" role="img">${titulo}
     <circle cx="12" cy="12" r="11" fill="${c.cor}"/>
     <text x="12" y="17" text-anchor="middle" font-size="13" font-weight="800" fill="#0e1a06">${c.sym}</text></svg>`;
 }
@@ -956,7 +992,7 @@ function renderMoves() {
   const box = $("movesBody");
   if (!S.moves.length) {
     box.innerHTML = '<div class="empty" style="padding-left:8px"><span class="rule"></span>' +
-      '<strong>Nenhuma partida carregada</strong>Importe um PGN para navegar lance a lance.</div>';
+      `<strong>${esc(tr("lances.vazio.titulo"))}</strong>${esc(tr("lances.vazio.texto"))}</div>`;
     return;
   }
   let html = "", open = false;
@@ -997,6 +1033,16 @@ function highlightMove() {
   if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
 }
 
+/** Estado vazio do relatório: sem partida, ou com partida ainda não analisada. */
+function renderReportBody() {
+  if (S.accuracy) { renderReport(); return; }
+  const chave = S.moves.length ? "rel.carregada" : "rel.vazio";
+  $("reportBody").innerHTML = (S.moves.length ? aberturaHtml(S.abertura) : "") +
+    `<div class="empty"><span class="rule"></span><strong>${esc(tr(chave + ".titulo"))}</strong>` +
+    tr(chave + ".texto") + "</div>";
+  if ($("exportRow")) $("exportRow").style.display = "none";
+}
+
 function renderReport() {
   if (!S.accuracy) return;
   const counts = { w: {}, b: {} };
@@ -1005,13 +1051,13 @@ function renderReport() {
     const c = S.moves[i].color;
     counts[c][pm.cls] = (counts[c][pm.cls] || 0) + 1;
   });
-  const wName = S.headers.White || "Brancas", bName = S.headers.Black || "Pretas";
+  const wName = nomeLado(S.headers.White, "w"), bName = nomeLado(S.headers.Black, "b");
   let rows = "";
   for (const k of CLS_ORDER) {
     const a = counts.w[k] || 0, b = counts.b[k] || 0;
     if (!a && !b) continue;
     rows += `<div class="r"><div class="w" style="color:${CLS[k].cor}">${a}</div>
-      <div class="lbl"><span class="chip" style="background:${CLS[k].cor}"></span>${CLS[k].nome}</div>
+      <div class="lbl" title="${esc(clsDica(k))}"><span class="chip" style="background:${CLS[k].cor}"></span>${esc(clsNome(k))}</div>
       <div class="b" style="color:${CLS[k].cor}">${b}</div></div>`;
   }
   // momentos-chave
@@ -1019,24 +1065,25 @@ function renderReport() {
     .sort((a, b) => b.pm.loss - a.pm.loss).slice(0, 5);
   let keyHtml = "";
   if (key.length) {
-    keyHtml = '<h3 class="sub">Momentos decisivos</h3>';
+    keyHtml = `<h3 class="sub">${esc(tr("rel.momentos"))}</h3>`;
     for (const k of key) {
       const m = S.moves[k.i];
       const n = m.num + (m.color === "w" ? ". " : "... ");
       keyHtml += `<button class="btn ghost keymove" data-goto="${k.i + 1}">
         ${icon(k.pm.cls, 15)}<b>${n}${m.san}</b>
-        <span class="hint">perdeu ${k.pm.loss.toFixed(0)}% de chance de vitória</span></button>`;
+        <span class="hint">${esc(tr("rel.perdeu", { n: k.pm.loss.toFixed(0) }))}</span></button>`;
     }
   }
+  const unidade = esc(tr("rel.precisao"));
   $("reportBody").innerHTML = aberturaHtml(S.abertura) + `
     <div class="accbox">
       <div class="side"><div class="k">${esc(wName)}</div>
-        <div class="v">${S.accuracy.w != null ? S.accuracy.w.toFixed(1) : "–"}</div><div class="u">precisão (%)</div></div>
+        <div class="v">${fmtNum(S.accuracy.w, 1)}</div><div class="u">${unidade}</div></div>
       <div class="side"><div class="k">${esc(bName)}</div>
-        <div class="v">${S.accuracy.b != null ? S.accuracy.b.toFixed(1) : "–"}</div><div class="u">precisão (%)</div></div>
+        <div class="v">${fmtNum(S.accuracy.b, 1)}</div><div class="u">${unidade}</div></div>
     </div>
     <canvas id="graph"></canvas>
-    <div class="caption">Chance de vitória das brancas ao longo da partida — clique para navegar.</div>
+    <div class="caption">${esc(tr("rel.grafico"))}</div>
     <div class="report-grid">${rows}</div>
     ${keyHtml}`;
   $("reportBody").querySelectorAll("[data-goto]").forEach((b) => (b.onclick = () => goTo(+b.dataset.goto)));
@@ -1105,8 +1152,10 @@ function renderEngineTab(live) {
   const fen = currentFen();
   const pos = live || (S.explore ? S.exploreEval : S.positions[S.ply]);
   if (!pos) {
-    box.innerHTML = '<div class="empty"><span class="rule"></span><strong>Motor ocioso</strong>' +
-      'Sem dados para esta posição. Analise a partida ou avalie só esta posição no botão abaixo.</div>';
+    // sem partida na tela o convite é geral; com partida, é sobre esta posição
+    const texto = tr(S.moves.length ? "motor.semDados" : "motor.vazio.texto");
+    box.innerHTML = '<div class="empty"><span class="rule"></span>' +
+      `<strong>${esc(tr("motor.vazio.titulo"))}</strong>${esc(texto)}</div>`;
     return;
   }
   const lines = pos.lines || [{ cp: pos.cp, mate: pos.mate, pv: pos.pv, depth: pos.depth }];
@@ -1130,7 +1179,7 @@ function renderEngineTab(live) {
       first = false;
     });
     html += `<div class="pvline"><span class="sc${neg ? " neg" : ""}">${txt}</span>
-      <span class="hint">prof. ${l.depth || "-"}</span><br>${moves}</div>`;
+      <span class="hint">${esc(tr("motor.prof", { d: l.depth || "-" }))}</span><br>${moves}</div>`;
   }
   box.innerHTML = html;
   box.querySelectorAll(".pvmove").forEach((el) => {
@@ -1158,7 +1207,7 @@ function playLine(fen, uciList, n) {
 
 /* análise sob demanda da posição atual (variações / botão "a fundo") */
 async function analyzeCurrent(quick) {
-  try { await Engine.boot(); } catch (e) { toast("Motor indisponível."); return; }
+  try { await Engine.boot(); } catch (e) { toast(tr("motor.offline")); return; }
   if (S.analyzing) return;
   const fen = currentFen();
   const c = new Chess(fen);
@@ -1239,7 +1288,7 @@ function passo() {
 }
 function alternarPlay() {
   if (playTimer) { pararPlay(); return; }
-  if (!S.moves.length) { toast("Carregue uma partida primeiro."); return; }
+  if (!S.moves.length) { toast(tr("toast.carregueAntes")); return; }
   Snd.init();
   if (S.ply >= S.moves.length) goTo(0, { auto: true });
   playTimer = setInterval(passo, intervalo());
@@ -1251,7 +1300,7 @@ function atualizarPlay() {
   $("btnPlay").classList.toggle("on", on);
   $("icoPlay").style.display = on ? "none" : "";
   $("icoPause").style.display = on ? "" : "none";
-  $("btnPlay").title = on ? "Pausar (espaço)" : "Passar os lances automaticamente (espaço)";
+  $("btnPlay").title = tr(on ? "btn.pausar" : "btn.play");
 }
 $("btnPlay").onclick = alternarPlay;
 $("speed").onchange = () => { if (playTimer) { clearInterval(playTimer); playTimer = setInterval(passo, intervalo()); } };
@@ -1290,7 +1339,7 @@ document.addEventListener("keydown", (e) => {
    ============================================================ */
 $("btnLoadPgn").onclick = () => {
   const txt = $("pgnBox").value.trim();
-  if (!txt) { toast("Cole um PGN primeiro."); return; }
+  if (!txt) { toast(tr("toast.colePgn")); return; }
   const games = splitPgn(txt);
   if (games.length > 1) showGameList(games.map((g, i) => ({ pgn: g, ...pgnInfo(g) })));
   else loadPgn(txt);
@@ -1317,13 +1366,17 @@ function pgnInfo(pgn) {
   pgn.replace(/\[(\w+)\s+"([^"]*)"\]/g, (_, k, v) => { h[k] = v; return ""; });
   return h;
 }
+/* Guardada para que a lista possa ser reetiquetada na troca de idioma:
+   o nome da abertura de cada linha vem da base e muda de língua junto. */
+let listaPartidas = null;
 function showGameList(items) {
   const box = $("gameList");
+  listaPartidas = items;
   box.innerHTML = items.map((g, i) => {
     const ab = aberturaTexto(aberturaDePgn(g.pgn, g));
     return `<button data-i="${i}">
       <div><b>${esc(g.White || "?")}</b> ${g.WhiteElo ? "(" + esc(g.WhiteElo) + ")" : ""} vs <b>${esc(g.Black || "?")}</b> ${g.BlackElo ? "(" + esc(g.BlackElo) + ")" : ""}</div>
-      <div class="meta">${esc(g.Result || "")} · ${esc(g.Date || g.UTCDate || "")} · ${esc(g.TimeControl || "")} ${esc(g.Event || "")}</div>
+      <div class="meta">${esc(g.Result || "")} · ${esc(fmtData(g.Date || g.UTCDate || ""))} · ${esc(g.TimeControl || "")} ${esc(g.Event || "")}</div>
       ${ab ? `<div class="meta">${esc(ab)}</div>` : ""}
     </button>`;
   }).join("");
@@ -1334,11 +1387,19 @@ function showGameList(items) {
   }));
 }
 
+/* A dica embaixo da busca também é reetiquetada: guarda a chave e os
+   parâmetros do que está escrito, não o texto pronto. */
+let buscaMsg = null;
+function pintarBusca() {
+  if (buscaMsg) $("fetchHint").textContent = tr(buscaMsg.k, buscaMsg.p);
+}
+function avisoBusca(k, p) { buscaMsg = { k, p }; pintarBusca(); }
+
 $("btnFetch").onclick = async () => {
   const user = $("userBox").value.trim();
-  if (!user) { toast("Digite o nome de usuário."); return; }
+  if (!user) { toast(tr("buscar.digite")); return; }
   const site = $("site").value;
-  $("fetchHint").textContent = "Buscando…";
+  avisoBusca("buscar.buscando");
   try {
     let items = [];
     // mode "cors" explícito: é o que mantém estas buscas funcionando quando a
@@ -1346,14 +1407,14 @@ $("btnFetch").onclick = async () => {
     if (site === "lichess") {
       const r = await fetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}?max=25`,
         { mode: "cors", headers: { Accept: "application/x-chess-pgn" } });
-      if (!r.ok) throw new Error("usuário não encontrado");
+      if (!r.ok) throw new Error(tr("buscar.semUsuario"));
       const txt = await r.text();
       items = splitPgn(txt).map((p) => ({ pgn: p, ...pgnInfo(p) }));
     } else {
       const ar = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(user.toLowerCase())}/games/archives`, { mode: "cors" });
-      if (!ar.ok) throw new Error("usuário não encontrado");
+      if (!ar.ok) throw new Error(tr("buscar.semUsuario"));
       const list = (await ar.json()).archives || [];
-      if (!list.length) throw new Error("sem partidas públicas");
+      if (!list.length) throw new Error(tr("buscar.semPublicas"));
       let games = [];
       for (let k = list.length - 1; k >= 0 && games.length < 25 && k > list.length - 4; k--) {
         const m = await fetch(list[k], { mode: "cors" });
@@ -1362,14 +1423,19 @@ $("btnFetch").onclick = async () => {
       }
       items = games.slice(0, 25).filter((g) => g.pgn).map((g) => ({ pgn: g.pgn, ...pgnInfo(g.pgn) }));
     }
-    if (!items.length) throw new Error("nenhuma partida encontrada");
+    if (!items.length) throw new Error(tr("buscar.nenhuma"));
     showGameList(items);
-    $("fetchHint").textContent = items.length + " partidas encontradas — escolha uma:";
+    avisoBusca("buscar.achou", { n: items.length });
   } catch (e) {
-    $("fetchHint").textContent = e instanceof TypeError
-      ? "Não deu certo: sem internet ou o site bloqueou a consulta." +
-        (self.crossOriginIsolated ? " (Se só a busca falha, sirva o app sem os cabeçalhos COOP/COEP — veja o README.)" : "")
-      : "Não deu certo: " + e.message + ".";
+    // A mensagem do erro já saiu do dicionário; guardá-la pronta é o certo
+    // aqui, senão a troca de idioma reescreveria um erro que não aconteceu.
+    if (e instanceof TypeError) {
+      buscaMsg = null;
+      $("fetchHint").textContent = tr("buscar.semRede") + (self.crossOriginIsolated ? tr("buscar.coep") : "");
+    } else {
+      buscaMsg = null;
+      $("fetchHint").textContent = tr("buscar.erro", { msg: e.message });
+    }
   }
 };
 
@@ -1380,19 +1446,19 @@ $("btnAnalyze").onclick = analyzeGame;
 $("btnNew").onclick = () => { showTab("import"); $("pgnBox").focus(); };
 $("btnDeep").onclick = () => analyzeCurrent(false);
 $("btnStopDeep").onclick = () => { Engine.stop(); };
-function copiar(txt, ok) {
-  if (!navigator.clipboard) { toast("Cópia indisponível neste modo — abra pelo atalho."); return; }
-  navigator.clipboard.writeText(txt).then(() => toast(ok), () => toast("Não consegui copiar."));
+function copiar(txt, chaveOk) {
+  if (!navigator.clipboard) { toast(tr("toast.copiaIndisponivel")); return; }
+  navigator.clipboard.writeText(txt).then(() => toast(tr(chaveOk)), () => toast(tr("toast.naoCopiou")));
 }
-$("btnCopyFen").onclick = () => copiar(currentFen(), "FEN copiado.");
+$("btnCopyFen").onclick = () => copiar(currentFen(), "toast.fenCopiado");
 $("btnCopyPgn").onclick = () => {
-  if (!S.moves.length) { toast("Nenhuma partida carregada."); return; }
+  if (!S.moves.length) { toast(tr("toast.semPartida")); return; }
   try {
     const c = new Chess(S.fens[0]);
     Object.entries(S.headers).forEach(([k, v]) => c.setHeader(k, v));
     S.moves.forEach((m) => c.move(m.san));
-    copiar(c.pgn(), "PGN copiado.");
-  } catch (e) { copiar($("pgnBox").value, "PGN copiado."); }
+    copiar(c.pgn(), "toast.pgnCopiado");
+  } catch (e) { copiar($("pgnBox").value, "toast.pgnCopiado"); }
 };
 document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
 function showTab(name) {
@@ -1406,7 +1472,12 @@ function toast(msg) {
   t.textContent = msg; t.classList.add("on");
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 2600);
 }
-$("legend").innerHTML = CLS_ORDER.map((k) => `<span>${icon(k, 14)}${CLS[k].nome}</span>`).join("");
+/* A legenda já escreve o nome ao lado do selo: o tooltip só entra quando a
+   língua precisa explicar (Capivarada → blunder). */
+function renderLegend() {
+  $("legend").innerHTML = CLS_ORDER
+    .map((k) => `<span title="${esc(clsDica(k))}">${icon(k, 14, true)}${esc(clsNome(k))}</span>`).join("");
+}
 
 window.addEventListener("resize", () => drawGraph());
 
@@ -1518,10 +1589,13 @@ function pgnDaPartida() {
   } catch (e) { return null; }
 }
 
+/* Guarda o cabeçalho cru: "Brancas"/"White" é rótulo de interface e sai do
+   dicionário na hora de desenhar, senão o registro salvo congelaria a língua
+   em que a análise foi feita. A data também fica no formato do PGN. */
 function metaDaPartida() {
   const h = S.headers || {};
   return {
-    w: h.White || "Brancas", b: h.Black || "Pretas",
+    w: h.White || "", b: h.Black || "",
     we: h.WhiteElo || "", be: h.BlackElo || "",
     res: h.Result || "*", data: h.Date || h.UTCDate || "", ev: h.Event || "",
   };
@@ -1548,25 +1622,25 @@ function salvarAnalise() {
     lista.unshift(rec);
     const ok = Saved.gravar(lista);
     renderSaved();
-    if (!ok) toast("Não deu para salvar: armazenamento do navegador cheio.");
+    if (!ok) toast(tr("toast.salvarCheio"));
   } catch (e) { /* salvar nunca pode derrubar a análise */ }
 }
 
 /** Reabre uma análise guardada — sem encostar no motor. */
 function abrirSalva(id) {
   const rec = Saved.ler().find((r) => r && r.id === id);
-  if (!rec || !rec.pgn) { toast("Análise não encontrada."); return; }
+  if (!rec || !rec.pgn) { toast(tr("toast.analiseNaoAchada")); return; }
   if (!loadPgn(rec.pgn)) return;
   const pos = (rec.pos || []).map(arrParaPos);
   const pm = (rec.pm || []).map(arrParaPm);
-  if (pos.length !== S.fens.length) { toast("A análise salva não bate com a partida."); return; }
+  if (pos.length !== S.fens.length) { toast(tr("toast.analiseNaoBate")); return; }
   S.positions = pos;
   S.perMove = pm.slice(0, S.moves.length);
   while (S.perMove.length < S.moves.length) S.perMove.push(null);
   S.accuracy = rec.acc && (rec.acc.w != null || rec.acc.b != null) ? rec.acc : null;
   renderPlayers(); renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
   renderReport(); showTab("report");
-  toast("Análise restaurada do navegador — sem rodar o motor.");
+  toast(tr("toast.analiseRestaurada"));
 }
 
 function renderSaved() {
@@ -1574,30 +1648,32 @@ function renderSaved() {
   if (!box) return;
   if (!Saved.disponivel()) {
     box.innerHTML = "";
-    if (hint) hint.textContent = "Este navegador está com o armazenamento bloqueado — o app funciona igual, mas não guarda análises.";
+    if (hint) hint.textContent = tr("salvas.bloqueado");
     return;
   }
   const lista = Saved.ler();
   if (!lista.length) {
     box.innerHTML = "";
-    if (hint) hint.textContent = "Nenhuma análise guardada ainda. Ao terminar uma análise ela aparece aqui e reabre na hora.";
+    if (hint) hint.textContent = tr("salvas.vazio");
     return;
   }
-  if (hint) hint.textContent = "Guardadas neste navegador (as " + Saved.MAX + " mais recentes). Clique para reabrir sem analisar de novo.";
+  if (hint) hint.textContent = tr("salvas.contagem", { n: Saved.MAX });
+  const apagar = esc(tr("salvas.apagar"));
   box.innerHTML = lista.map((r) => {
     const m = r.meta || {};
-    const acc = (r.acc && r.acc.w != null ? r.acc.w.toFixed(1) : "–") + "% / " +
-                (r.acc && r.acc.b != null ? r.acc.b.toFixed(1) : "–") + "%";
+    const acc = fmtPct(r.acc && r.acc.w != null ? r.acc.w : null, 1) + " / " +
+                fmtPct(r.acc && r.acc.b != null ? r.acc.b : null, 1);
+    const quando = fmtData(m.data) || tr("salvas.semData");
     return `<div class="saved"><button data-open="${esc(r.id)}">
-        <div><b>${esc(m.w || "?")}</b> ${m.we ? "(" + esc(m.we) + ")" : ""} vs <b>${esc(m.b || "?")}</b> ${m.be ? "(" + esc(m.be) + ")" : ""}</div>
-        <div class="meta">${esc(m.res || "*")} · ${esc(m.data || "sem data")} · precisão ${acc}</div>
-      </button><button class="del" data-del="${esc(r.id)}" title="Apagar esta análise" aria-label="Apagar análise">Apagar</button></div>`;
+        <div><b>${esc(nomeLado(m.w, "w"))}</b> ${m.we ? "(" + esc(m.we) + ")" : ""} vs <b>${esc(nomeLado(m.b, "b"))}</b> ${m.be ? "(" + esc(m.be) + ")" : ""}</div>
+        <div class="meta">${esc(m.res || "*")} · ${esc(quando)} · ${esc(tr("salvas.precisao", { v: acc }))}</div>
+      </button><button class="del" data-del="${esc(r.id)}" title="${esc(tr("salvas.apagar.dica"))}" aria-label="${esc(tr("salvas.apagar.aria"))}">${apagar}</button></div>`;
   }).join("");
   box.querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => abrirSalva(b.dataset.open)));
   box.querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => {
     const ok = Saved.apagar(b.dataset.del);
     renderSaved();
-    toast(ok ? "Análise apagada." : "Não consegui apagar — armazenamento indisponível.");
+    toast(tr(ok ? "toast.analiseApagada" : "toast.naoApagou"));
   }));
 }
 
@@ -1615,7 +1691,7 @@ function baixarBlob(blob, nome) {
     a.click();
     setTimeout(() => { try { URL.revokeObjectURL(url); a.remove(); } catch (e) {} }, 2000);
     return true;
-  } catch (e) { toast("Este navegador não deixou baixar o arquivo."); return false; }
+  } catch (e) { toast(tr("toast.semDownload")); return false; }
 }
 function nomeArquivo(ext) {
   const m = metaDaPartida();
@@ -1650,15 +1726,16 @@ function evalTag(p) {
 }
 function semChaves(s) { return String(s).replace(/[{}]/g, ""); }
 
+/* O comentário segue o idioma ativo; o [%eval] e o SAN não, que são notação. */
 function comentarioDoLance(i) {
   const pm = S.perMove[i];
   if (!pm) return "";
-  let txt = CLS[pm.cls].nome;
-  if (pm.loss >= 1) txt += " — perdeu " + Math.round(pm.loss) + "% de chance de vitória";
+  let txt = clsNome(pm.cls);
+  if (pm.loss >= 1) txt += tr("pgn.perdeu", { n: Math.round(pm.loss) });
   const posB = S.positions[i];
   if ((pm.cls === "impreciso" || pm.cls === "erro" || pm.cls === "capivarada") && posB && posB.best) {
     const alt = uciLineToSan(S.fens[i], [posB.best], 1)[0];
-    if (alt && alt.san !== S.moves[i].san) txt += "; melhor era " + alt.san;
+    if (alt && alt.san !== S.moves[i].san) txt += tr("pgn.melhorEra", { san: alt.san });
   }
   const tag = evalTag(S.positions[i + 1]);
   return "{ " + (tag ? "[%eval " + tag + "] " : "") + semChaves(txt) + " }";
@@ -1711,12 +1788,12 @@ function pgnComentado() {
 }
 
 function exportarPgn() {
-  if (!S.moves.length) { toast("Nenhuma partida carregada."); return; }
+  if (!S.moves.length) { toast(tr("toast.semPartida")); return; }
   const txt = pgnComentado();
   try {
     const blob = new Blob([txt], { type: "application/x-chess-pgn;charset=utf-8" });
-    if (baixarBlob(blob, nomeArquivo("pgn"))) toast("PGN comentado baixado.");
-  } catch (e) { toast("Não consegui gerar o arquivo."); }
+    if (baixarBlob(blob, nomeArquivo("pgn"))) toast(tr("toast.pgnBaixado"));
+  } catch (e) { toast(tr("toast.semArquivo")); }
 }
 
 /* ---------- imagem do relatório (canvas puro) ---------- */
@@ -1805,7 +1882,7 @@ function desenharRelatorio(cv) {
   g.fillText("Plyscope", pad + 44, yHead + 20);
   g.fillStyle = IMG.tx3;
   g.font = '400 12.5px ' + IMG_FONT;
-  g.fillText("Cada lance sob a lupa · análise local com Stockfish", pad + 44, yHead + 38);
+  g.fillText(tr("img.tagline"), pad + 44, yHead + 38);
 
   const m = metaDaPartida();
   g.textAlign = "right";
@@ -1814,7 +1891,7 @@ function desenharRelatorio(cv) {
   g.fillText(cortar(g, m.res || "*", 260), W - pad, yHead + 18);
   g.fillStyle = IMG.tx3;
   g.font = '400 12px ' + IMG_FONT;
-  g.fillText(cortar(g, [m.ev, m.data].filter(Boolean).join(" · ") || "partida sem data", 300), W - pad, yHead + 37);
+  g.fillText(cortar(g, [m.ev, fmtData(m.data)].filter(Boolean).join(" · ") || tr("img.semData"), 300), W - pad, yHead + 37);
   g.textAlign = "left";
 
   g.strokeStyle = IMG.hair; g.lineWidth = 1;
@@ -1822,7 +1899,7 @@ function desenharRelatorio(cv) {
 
   /* --- precisão dos dois lados --- */
   const cw = (W - pad * 2 - 14) / 2;
-  [["w", m.w, m.we, pad], ["b", m.b, m.be, pad + cw + 14]].forEach(([lado, nome, elo, x]) => {
+  [["w", nomeLado(m.w, "w"), m.we, pad], ["b", nomeLado(m.b, "b"), m.be, pad + cw + 14]].forEach(([lado, nome, elo, x]) => {
     g.fillStyle = IMG.card; retangulo(g, x, yAcc, cw, hAcc, 8); g.fill();
     g.strokeStyle = IMG.line; g.lineWidth = 1;
     retangulo(g, x + .5, yAcc + .5, cw - 1, hAcc - 1, 8); g.stroke();
@@ -1832,21 +1909,21 @@ function desenharRelatorio(cv) {
     g.fillStyle = IMG.tx;
     g.font = '600 15px ' + IMG_FONT;
     g.fillText(cortar(g, nome + (elo ? "  (" + elo + ")" : ""), cw - 46), x + 34, yAcc + 29);
-    const v = S.accuracy && S.accuracy[lado] != null ? S.accuracy[lado].toFixed(1) : "–";
+    const v = fmtNum(S.accuracy ? S.accuracy[lado] : null, 1);
     g.fillStyle = IMG.tx;
     g.font = '600 40px ' + IMG_MONO;
     g.fillText(v, x + 16, yAcc + 78);
     const largV = g.measureText(v).width;
     g.fillStyle = IMG.tx3;
     g.font = '400 12.5px ' + IMG_FONT;
-    g.fillText("precisão (%)", x + 16 + largV + 11, yAcc + 78);
+    g.fillText(tr("rel.precisao"), x + 16 + largV + 11, yAcc + 78);
   });
 
   /* --- gráfico de vantagem --- */
   graficoNaImagem(g, pad, yGraph, W - pad * 2, hGraph);
   g.fillStyle = IMG.tx3;
   g.font = '400 12px ' + IMG_FONT;
-  g.fillText("Chance de vitória das brancas ao longo da partida · " + S.moves.length + " lances", pad, yCap + 4);
+  g.fillText(tr("img.grafico", { n: S.moves.length }), pad, yCap + 4);
 
   /* --- contagem por tipo de lance, nas cores dos selos --- */
   const meio = W / 2;
@@ -1863,11 +1940,12 @@ function desenharRelatorio(cv) {
     g.fillText(String(counts.b[k] || 0), meio + 96, yb);
     // selo + nome centralizados entre as duas contagens
     g.font = '500 14px ' + IMG_FONT;
-    const larg = g.measureText(CLS[k].nome).width + 17;
+    const rotulo = clsNome(k);
+    const larg = g.measureText(rotulo).width + 17;
     const xIni = meio - larg / 2;
     g.beginPath(); g.arc(xIni + 5, yb - 5, 5, 0, 7); g.fill();
     g.fillStyle = IMG.tx2;
-    g.fillText(CLS[k].nome, xIni + 17, yb);
+    g.fillText(rotulo, xIni + 17, yb);
   });
   g.strokeStyle = IMG.hair; g.lineWidth = 1;
   g.beginPath(); g.moveTo(pad, yRows + linhas.length * hRow + .5); g.lineTo(W - pad, yRows + linhas.length * hRow + .5); g.stroke();
@@ -1879,41 +1957,75 @@ function desenharRelatorio(cv) {
   const largMarca = g.measureText("Plyscope").width;
   g.fillStyle = IMG.tx3;
   g.font = '400 12.5px ' + IMG_FONT;
-  g.fillText("· relatório gerado no navegador, sem enviar nada para servidor", pad + largMarca + 7, yFoot + 14);
+  g.fillText(tr("img.rodape"), pad + largMarca + 7, yFoot + 14);
   return cv;
 }
 
 function exportarImagem() {
-  if (!S.accuracy) { toast("Analise a partida primeiro."); return; }
+  if (!S.accuracy) { toast(tr("toast.analisePrimeiro")); return; }
   let cv;
   try { cv = document.createElement("canvas"); } catch (e) { cv = null; }
   if (!cv || typeof cv.getContext !== "function" || !cv.getContext("2d")) {
-    toast("Este navegador não desenha em canvas — exportação de imagem indisponível.");
+    toast(tr("toast.semCanvas"));
     return;
   }
   try {
-    if (!desenharRelatorio(cv)) { toast("Não consegui desenhar a imagem."); return; }
-  } catch (e) { toast("Não consegui desenhar a imagem."); return; }
+    if (!desenharRelatorio(cv)) { toast(tr("toast.semDesenho")); return; }
+  } catch (e) { toast(tr("toast.semDesenho")); return; }
   const nome = nomeArquivo("png");
   if (typeof cv.toBlob === "function") {
     cv.toBlob((b) => {
-      if (b) { if (baixarBlob(b, nome)) toast("Imagem do relatório baixada."); }
-      else toast("Não consegui gerar o PNG.");
+      if (b) { if (baixarBlob(b, nome)) toast(tr("toast.imagemBaixada")); }
+      else toast(tr("toast.semPng"));
     }, "image/png");
   } else if (typeof cv.toDataURL === "function") {
     try {
       const a = document.createElement("a");
       a.href = cv.toDataURL("image/png"); a.download = nome;
-      a.click(); toast("Imagem do relatório baixada.");
-    } catch (e) { toast("Não consegui gerar o PNG."); }
-  } else toast("Não consegui gerar o PNG.");
+      a.click(); toast(tr("toast.imagemBaixada"));
+    } catch (e) { toast(tr("toast.semPng")); }
+  } else toast(tr("toast.semPng"));
 }
 
 $("btnExportPgn").onclick = exportarPgn;
 $("btnExportPng").onclick = exportarImagem;
 
+/* ============================================================
+   Troca de idioma
+   ------------------------------------------------------------
+   O dicionário reetiqueta sozinho tudo que está marcado no HTML
+   (data-i18n & cia). O que o app escreve por innerHTML — relatório,
+   lista de lances, lista de partidas, análises salvas, linhas do
+   motor, legenda — não tem como ser reetiquetado: é redesenhado,
+   a partir do MESMO estado. Nada em S é tocado aqui, então a
+   análise aberta continua exatamente onde estava: mesma precisão,
+   mesmos selos, mesmo lance selecionado, mesma variação explorada.
+   ============================================================ */
+function aplicarIdioma() {
+  // a abertura vem da base ECO, que fala as duas línguas
+  if (S.fens.length > 1) S.abertura = aberturaDeFens(S.fens, S.headers);
+
+  $("btnAnalyze").textContent = tr(S.analyzing ? "btn.parar" : "btn.analisar");
+  atualizarPlay();                     // o title do play depende de estar tocando
+  pintarStatus();                      // painel de progresso, se estiver na tela
+  pintarBusca();                       // dica embaixo da busca online
+  notaMotor();                         // versão, modo e threads
+  renderLegend();
+  renderPlayers(); renderMoves(); renderBoard(); renderEvalBar();
+  renderEngineTab(); renderReportBody(); renderSaved();
+  if (listaPartidas) showGameList(listaPartidas);
+
+  for (const b of [$("btnLangPt"), $("btnLangEn")]) {
+    const ativo = b.dataset.lang === I18.idioma();
+    b.classList.toggle("on", ativo);
+    b.setAttribute("aria-pressed", ativo ? "true" : "false");
+  }
+}
+$("btnLangPt").onclick = () => I18.definir("pt");
+$("btnLangEn").onclick = () => I18.definir("en");
+I18.aoTrocar(aplicarIdioma);
+
 /* ---------- início ---------- */
-renderSaved();
-renderBoard(); renderEvalBar(); notaMotor();
+aplicarIdioma();
 Engine.boot().catch(() => {});
 })();

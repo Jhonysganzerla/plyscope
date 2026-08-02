@@ -1,4 +1,8 @@
 <p align="center">
+  <b>Português (Brasil)</b> · <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
   <img src="brand/logo.svg" alt="Plyscope" width="380">
 </p>
 
@@ -88,7 +92,9 @@ Antes do veredito, todo candidato a sacrifício é **reanalisado com mais profun
 
 **Interface**
 - Escura grafite, layout de aplicativo: o tabuleiro fica sempre visível, sem rolagem.
-- Português do Brasil, incluindo o selo **Capivarada** no lugar de "blunder".
+- **Bilíngue: português do Brasil e inglês**, com os botões `PT`/`EN` no topo. A troca é imediata e não perde a análise que estiver na tela — relatório, selos, gráfico e análises salvas são reetiquetados na hora, sem recarregar a página. O idioma inicial vem do navegador (`navigator.language`) e a escolha fica guardada.
+- Números no formato de cada língua (`96,2%` × `96.2%`, `1,2 s` × `1.2s`), datas idem, e os nomes das aberturas nas duas línguas — a notação de xadrez (SAN/FEN/PGN/ECO) nunca é traduzida.
+- O selo **Capivarada** continua Capivarada nas duas línguas — em inglês o tooltip explica que é o *blunder*.
 
 <!-- screenshot -->
 
@@ -179,9 +185,10 @@ plyscope/
 ├─ src/                           fontes — o index.html é gerado a partir daqui
 │  ├─ shell.html                  HTML + CSS (tokens, layout)
 │  ├─ app.js                      análise, classificação, tabuleiro, som
+│  ├─ i18n.js                     dicionário pt-BR/en e troca de idioma
 │  ├─ build.py                    junta tudo num index.html só
 │  ├─ vendor/chess.esm.js         chess.js (regras, PGN, FEN)
-│  ├─ data/openings.js            base ECO compactada (3607 posições, ~74 KB)
+│  ├─ data/openings.js            base ECO compactada (3607 posições, ~78 KB)
 │  └─ assets/pieces.svg           sprite das peças
 ├─ tools/
 │  ├─ servidor.py                 servidor estático em Python 3 (macOS/Linux)
@@ -214,7 +221,7 @@ Para testar antes de publicar (roda o Stockfish de verdade, ~35 s):
 cd tools && npm install && node test.js ../docs/exemplos/opera-1858.pgn
 ```
 
-O `build.py` injeta o sprite, o chess.js, a base de aberturas e o `app.js` nos marcadores do `shell.html` (`<!--__PIECES__-->`, `/*__CHESSJS__*/`, `/*__OPENINGS__*/`, `/*__APP__*/`). Não remova esses marcadores.
+O `build.py` injeta o sprite, o chess.js, a base de aberturas, o dicionário de idiomas e o `app.js` nos marcadores do `shell.html` (`<!--__PIECES__-->`, `/*__CHESSJS__*/`, `/*__OPENINGS__*/`, `/*__I18N__*/`, `/*__APP__*/`). Não remova esses marcadores.
 
 A base de aberturas é gerada, não editada à mão. Para atualizá-la:
 
@@ -241,6 +248,8 @@ O Plyscope usa **chance de vitória** (win%), a mesma ideia do Lichess e do ches
 | **Erro (?)** | Perdeu de 10% a 20%. |
 | **Capivarada (??)** | Perdeu mais de 20%. |
 
+Em inglês os selos são *Brilliant, Great, Best, Excellent, Good, Forced, Inaccuracy* e *Mistake* — só o **Capivarada** fica como está, com o significado (*blunder*) no tooltip.
+
 **Precisão** sai das fórmulas públicas do Lichess: a perda de chance de vitória vira precisão do lance, e a precisão da partida é a média entre a média ponderada pela volatilidade da posição e a média harmônica. Os números ficam próximos dos do chess.com, mas não idênticos — a fórmula deles é fechada.
 
 ## Créditos
@@ -249,7 +258,7 @@ Este app é uma casca em volta de trabalho de outras pessoas:
 
 - **[Stockfish](https://stockfishchess.org/)** — o motor. GPLv3. Build WebAssembly de **[nmrugg/stockfish.js](https://github.com/nmrugg/stockfish.js)** (`stockfish-17.1-lite-single`). Licença completa em `engine/LICENSE-stockfish-GPLv3.txt`.
 - **[chess.js](https://github.com/jhlywa/chess.js)** — regras, geração de lances, PGN e FEN. Licença BSD.
-- **[lichess-org/chess-openings](https://github.com/lichess-org/chess-openings)** — a base ECO (código, nome e linha de cada abertura) que identifica a abertura da partida. **CC0 1.0 — domínio público.** Chegou aqui pelo pacote npm **[chess-openings](https://www.npmjs.com/package/chess-openings)** de Guido Flohr (WTFPL), que redistribui essa mesma classificação; só os dados foram aproveitados, compactados por `tools/gerar-aberturas.js` em `src/data/openings.js`. Os nomes de família foram vertidos para o português nesse mesmo passo.
+- **[lichess-org/chess-openings](https://github.com/lichess-org/chess-openings)** — a base ECO (código, nome e linha de cada abertura) que identifica a abertura da partida. **CC0 1.0 — domínio público.** Chegou aqui pelo pacote npm **[chess-openings](https://www.npmjs.com/package/chess-openings)** de Guido Flohr (WTFPL), que redistribui essa mesma classificação; só os dados foram aproveitados, compactados por `tools/gerar-aberturas.js` em `src/data/openings.js`. Os nomes ficam guardados em inglês, como na origem, e o português sai na hora da busca pelo tradutor mecânico que acompanha a base — guardar os dois nomes custaria ~36 KB, e assim as duas línguas saem por ~4 KB.
 - **Peças** — sprite do **[cm-chessboard](https://github.com/shaack/cm-chessboard)**, desenhadas por **Cburnett** (Wikimedia Commons), **CC BY-SA 3.0**. Se você redistribuir as peças, mantenha a atribuição e a mesma licença.
 - **[Lichess](https://lichess.org)** — pelas fórmulas de precisão e de chance de vitória, publicadas e explicadas.
 - **Chess.com** — pelo Game Review, que é o alvo de comparação, e pelo Brilliant Move Benchmark ter um gabarito para medir.
@@ -275,7 +284,7 @@ Feito desde a primeira versão pública:
 - [x] **Exportar** PGN comentado (com NAG e `[%eval]`, relido por Lichess/SCID) e imagem PNG do relatório.
 - [x] **Launchers para macOS e Linux** (`plyscope.sh`, `Abrir Plyscope.command`), com os mesmos cabeçalhos do servidor do Windows.
 - [x] **Stockfish multi-thread** automático quando a página está cross-origin isolated, com queda para 1 thread e aviso do modo na aba Motor.
-- [x] **Interface em inglês**, com troca de idioma na própria interface.
+- [x] **Interface em inglês**, com troca de idioma na própria interface — sem recarregar a página e sem perder a análise aberta.
 
 O que ainda não está fechado:
 

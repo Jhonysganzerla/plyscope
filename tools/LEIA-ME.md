@@ -17,6 +17,8 @@ O `servidor.py` é o caminho normal (Python 3); o `servidor.js` é o plano B par
 
 Sobe o `index.html` num DOM falso (jsdom), troca o Web Worker por um processo Node rodando o mesmo Stockfish, e exercita o app inteiro: carrega um PGN, analisa a partida, confere o relatório e os selos, navega, explora variações, clica nas linhas do motor, liga a reprodução automática e passeia pelas abas.
 
+Também confere a troca de idioma com a análise na tela: analisa em português, muda para inglês e verifica que o topo, as abas, o relatório, os selos da lista de lances e o painel de análises salvas mudaram de língua — enquanto a análise continua a mesma (mesmos selos, mesmo SAN, mesma precisão, só reescrita no formato da outra língua) — e depois volta para o português conferindo que a tela fica idêntica à de antes.
+
 ```bash
 node test.js                 # usa um PGN embutido
 node test.js partida.pgn     # usa o seu

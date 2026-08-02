@@ -13,14 +13,26 @@
  *   H  hash FNV-1a 32 bits da posição normalizada, em ordem crescente,
  *      guardado como delta de 24 bits (4 caracteres cada);
  *   E  código ECO, 2 caracteres (índice = (letra-'A')*100 + número);
- *   N  nome: fluxo de códigos de token, terminado pelo caractere A[31];
- *      tokens 0..30 ocupam 1 caractere (A[i]); os demais ocupam 2
+ *   N  nome EM INGLÊS: fluxo de códigos de token, terminado pelo caractere
+ *      A[31]; tokens 0..30 ocupam 1 caractere (A[i]); os demais ocupam 2
  *      (A[32+q] seguido de A[r], token = 31 + q*64 + r);
  *   D  dicionário de tokens separados por espaço, do mais ao menos frequente.
  *
  * A posição normalizada é "peças lado roques" — sem casa de en passant e sem
  * contadores. Isso faz a busca ser por posição (e não por sequência de lances),
  * então transposições caem na mesma entrada.
+ *
+ * BILÍNGUE, SEM GUARDAR OS DOIS NOMES
+ * -----------------------------------
+ * A versão anterior guardava só o nome em português, já traduzido aqui.
+ * Guardar os dois nomes custaria +45,4 KB (dois dicionários) ou +35,5 KB
+ * (dicionário compartilhado, e a 2030 de 2079 tokens do limite do formato).
+ * Como a tradução é mecânica — uma tabela de famílias, uma de núcleos e uma
+ * de adjetivos — o que vai para o arquivo é o nome INGLÊS, que é a fonte, e
+ * junto vai o próprio tradutor. Português sai da mesma função de sempre,
+ * agora na hora da busca (com memo). O inglês é menor que o português
+ * (45,4 KB contra 51,3 KB de nome + dicionário), então a base fica 5,7 KB
+ * menor e o tradutor ocupa ~9 KB: saldo de +3,3 KB para ter as duas línguas.
  */
 "use strict";
 const fs = require("fs");
@@ -236,11 +248,19 @@ const { eco } = require(path.resolve(fonte));
 const porChave = new Map();
 for (const epd of Object.keys(eco)) {
   const k = normalizar(epd);
-  if (!porChave.has(k)) porChave.set(k, { eco: eco[epd].eco, name: traduzir(eco[epd].name) });
+  if (!porChave.has(k)) porChave.set(k, { eco: eco[epd].eco, name: eco[epd].name });
 }
 const linhas = [...porChave.entries()]
   .map(([k, v]) => ({ h: hash32(k), eco: v.eco, name: v.name }))
   .sort((a, b) => a.h - b.h);
+
+/* O nome vai para o arquivo tokenizado por espaço: espaço duplo ou nas pontas
+   quebraria a reconstrução, e aí o português sairia errado. */
+for (const r of linhas) {
+  if (r.name !== r.name.trim().replace(/\s+/g, " ")) {
+    throw new Error("nome com espaçamento irregular: " + JSON.stringify(r.name));
+  }
+}
 
 const dup = linhas.filter((r, i) => i && r.h === linhas[i - 1].h).length;
 if (dup) throw new Error("colisão de hash: " + dup + " entradas");
@@ -267,11 +287,33 @@ for (const r of linhas) {
 }
 const D = dic.join(" ");
 
+/* Objeto JS legível: uma linha por par, quebrada a cada ~92 colunas. */
+function objJs(o, ind) {
+  const pad = " ".repeat(ind);
+  const itens = Object.entries(o).map(([k, v]) =>
+    JSON.stringify(k) + ":" + JSON.stringify(v));
+  const linhas = [];
+  let l = "";
+  for (const it of itens) {
+    if (l && l.length + it.length + 2 > 92) { linhas.push(l + ","); l = ""; }
+    l = l ? l + ", " + it : it;
+  }
+  if (l) linhas.push(l);
+  return "{\n" + linhas.map((x) => pad + "  " + x).join("\n") + "\n" + pad + "}";
+}
+
 const saida = `/* Base de aberturas ECO — gerada por tools/gerar-aberturas.js, não edite à mão.
    Dados: lichess-org/chess-openings (CC0 1.0, domínio público), via o pacote npm
    chess-openings@0.1.1 (WTFPL). ${linhas.length} posições, códigos ECO e nomes.
    Busca por posição normalizada (peças + lado + roques), o que faz transposições
-   de lances caírem naturalmente na mesma entrada. */
+   de lances caírem naturalmente na mesma entrada.
+
+   Os nomes são guardados EM INGLÊS, que é a forma original da base. O português
+   sai na hora da busca, pelo mesmo tradutor mecânico que o gerador usa — guardar
+   os dois nomes custaria ~36 KB a mais, o tradutor custa ~9 KB e o inglês é mais
+   curto que o português, então as duas línguas saem por ~3 KB acima do que
+   custava só o português. Chame buscar(fen, "en") ou detectar(fens, ply, "en")
+   para o nome original; sem idioma, ou com "pt", vem o português. */
 window.Aberturas = (function () {
   "use strict";
   const A = "${A}";
@@ -279,6 +321,26 @@ window.Aberturas = (function () {
   const E = "${E}";
   const N = "${N}";
   const D = "${D}";
+
+  /* ---------- tradução pt-BR (a mesma tabela do gerador) ----------
+     Só a família (o trecho antes do primeiro ":") e os qualificadores comuns
+     são vertidos: o resto são nomes próprios (Najdorf, Winawer, Marshall…) e
+     traduzi-los automaticamente daria resultado ruim. */
+  const FAMILIA_PT = ${objJs(FAMILIA_PT, 2)};
+  const NUCLEO = ${objJs(NUCLEO, 2)};
+  const ADJ = ${objJs(ADJ, 2)};
+  const SEGMENTO_PT = ${objJs(SEGMENTO_PT, 2)};
+
+  ${traduzSeg.toString().split("\n").join("\n  ")}
+
+  ${traduzir.toString().split("\n").join("\n  ")}
+
+  const memoPt = new Map();
+  function paraPt(en) {
+    let v = memoPt.get(en);
+    if (v === undefined) { v = traduzir(en); memoPt.set(en, v); }
+    return v;
+  }
 
   const v = new Array(128).fill(0);
   for (let i = 0; i < 64; i++) v[A.charCodeAt(i)] = i;
@@ -315,8 +377,9 @@ window.Aberturas = (function () {
     return s;
   }
 
-  /* Procura a posição na base. Devolve {eco, nome} ou null. */
-  function buscar(fen) {
+  /* Procura a posição na base. Devolve {eco, nome} ou null.
+     idioma: "en" devolve o nome original; qualquer outra coisa, o português. */
+  function buscar(fen, idioma) {
     if (!hs) montar();
     const alvo = hash32(chave(fen));
     let lo = 0, hi = hs.length - 1;
@@ -324,7 +387,9 @@ window.Aberturas = (function () {
       const m = (lo + hi) >> 1;
       if (hs[m] === alvo) {
         const e = (v[E.charCodeAt(m * 2)] << 6) | v[E.charCodeAt(m * 2 + 1)];
-        return { eco: String.fromCharCode(65 + Math.floor(e / 100)) + String(e % 100).padStart(2, "0"), nome: nome(m) };
+        const en = nome(m);
+        return { eco: String.fromCharCode(65 + Math.floor(e / 100)) + String(e % 100).padStart(2, "0"),
+                 nome: idioma === "en" ? en : paraPt(en) };
       }
       if (hs[m] < alvo) lo = m + 1; else hi = m - 1;
     }
@@ -334,11 +399,11 @@ window.Aberturas = (function () {
   /* Percorre as posições da partida e devolve a correspondência mais profunda
      (a abertura é a última que bate, não a primeira). fens[0] é a posição
      inicial; o resultado traz o lance (ply) em que a teoria termina. */
-  function detectar(fens, maxPly) {
+  function detectar(fens, maxPly, idioma) {
     const lim = Math.min(fens.length - 1, maxPly || 30);
     let achado = null;
     for (let p = 1; p <= lim; p++) {
-      const r = buscar(fens[p]);
+      const r = buscar(fens[p], idioma);
       if (r) { achado = r; achado.ply = p; }
     }
     return achado;
@@ -351,6 +416,7 @@ window.Aberturas = (function () {
 const dest = path.resolve(__dirname, "..", "src", "data", "openings.js");
 fs.mkdirSync(path.dirname(dest), { recursive: true });
 fs.writeFileSync(dest, saida, "utf8");
-console.log("posições:", linhas.length, "| tokens:", dic.length);
-console.log("H", H.length, "| E", E.length, "| N", N.length, "| D", D.length);
+console.log("posições:", linhas.length, "| tokens:", dic.length, "(limite", 31 + 32 * 64 + ")");
+console.log("H", H.length, "| E", E.length, "| N", N.length, "| D", D.length, "(nomes em inglês)");
+console.log("exemplo:", linhas[0].name, "→", traduzir(linhas[0].name));
 console.log("ok:", dest, Buffer.byteLength(saida, "utf8"), "bytes (" + (Buffer.byteLength(saida, "utf8") / 1024).toFixed(1) + " KB)");
