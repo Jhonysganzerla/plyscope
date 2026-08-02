@@ -1,0 +1,29 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  index-atualizado:
+    name: index.html está em dia com src/
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Reconstruir o index.html
+        run: python3 src/build.py
+
+      - name: Conferir se o commit tem o build atual
+        run: |
+          if ! git diff --quiet -- index.html; then
+            echo "::error::O index.html commitado não bate com src/. Rode 'python3 src/build.py' e comite o resultado."
+            git diff --stat -- index.html
+            exit 1
+          fi
+          echo "index.html está em dia."

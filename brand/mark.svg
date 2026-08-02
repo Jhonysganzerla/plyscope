@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Plyscope">
+  <title>Plyscope</title>
+  <!-- a lente: o motor olhando para uma posicao -->
+  <circle cx="16" cy="16" r="12.5" fill="none" stroke="currentColor" stroke-width="2" opacity=".55"/>
+  <!-- o degrau: duas casas da mesma cor na diagonal = a avaliacao subindo um ply -->
+  <rect x="9.5" y="16" width="6.5" height="6.5" fill="currentColor"/>
+  <rect x="16" y="9.5" width="6.5" height="6.5" fill="currentColor"/>
+</svg>

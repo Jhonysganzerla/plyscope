@@ -1,0 +1,25 @@
+# dependências das ferramentas de desenvolvimento
+node_modules/
+tools/node_modules/
+
+# saídas de calibração (cache do motor, medições)
+tools/saida/
+*.log
+
+# PGNs de teste que você jogou aqui dentro
+*.pgn
+!docs/exemplos/*.pgn
+
+# sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# editores
+.vscode/
+.idea/
+*.swp
+
+# python
+__pycache__/
+*.pyc

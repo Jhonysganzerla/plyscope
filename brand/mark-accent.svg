@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Plyscope">
+  <title>Plyscope</title>
+  <circle cx="16" cy="16" r="12.5" fill="none" stroke="#767d87" stroke-width="2"/>
+  <rect x="9.5" y="16" width="6.5" height="6.5" fill="#e8eaed"/>
+  <rect x="16" y="9.5" width="6.5" height="6.5" fill="#9081da"/>
+</svg>

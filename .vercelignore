@@ -1,0 +1,8 @@
+# o site é só o index.html + a pasta engine/; o resto é fonte e documentação
+src/
+tools/
+docs/
+brand/
+node_modules/
+*.bat
+*.ps1

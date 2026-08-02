@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Plyscope · Análise de Xadrez</title>
+<meta name="description" content="Plyscope — cada lance sob a lupa: revisão de partidas de xadrez com Stockfish, 100% no seu navegador.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Plyscope · Cada lance sob a lupa">
+<meta property="og:description" content="Revisão de partidas de xadrez com Stockfish 17.1 rodando no seu navegador. Sem conta, sem servidor, sem mensalidade.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2316191d'/%3E%3Crect x='7.5' y='16.5' width='8' height='8' fill='%23e8eaed'/%3E%3Crect x='16.5' y='7.5' width='8' height='8' fill='%239081da'/%3E%3C/svg%3E">
+<style>
+/* =========================================================
+   1. TOKENS
+   ========================================================= */
+:root{
+  /* superfícies grafite */
+  --bg:#101215;
+  --bg-deep:#0b0d0f;
+  --surface:#16191d;
+  --surface-2:#1b1f25;
+  --surface-3:#232830;
+  --line:#282d35;
+  --hair:#1f242a;
+
+  /* texto */
+  --tx:#e8eaed;
+  --tx-2:#a4abb4;
+  --tx-3:#767d87;
+
+  /* acento único (violeta Plyscope): a cor da interface, nunca a cor de um lance.
+     verde/ciano/amarelo/laranja/vermelho já significam qualidade de lance — o acento fica fora dessa escala. */
+  --accent:#9081da;
+  --accent-hi:#a99fe4;
+  --accent-ink:#14112c;
+  --accent-dim:#383260;
+
+  --danger:#c9483f;
+  --warn:#c8a24a;
+
+  --sans:"Segoe UI Variable Text","Segoe UI",ui-sans-serif,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --display:"Segoe UI Variable Display","Segoe UI",ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","Segoe UI Mono",Consolas,"SF Mono",monospace;
+
+  --r-xs:5px; --r-sm:7px; --r-md:10px; --r-lg:14px;
+  --ease:cubic-bezier(.16,1,.3,1);
+
+  /* métrica do layout */
+  --top-h:56px;
+  --gutter:18px;
+  --pad:16px;
+  --rail-w:clamp(330px,26vw,432px);
+  --eval-w:18px;
+  --eval-gap:10px;
+  --stage-chrome:264px;
+
+  /* o tabuleiro é dimensionado pela ALTURA disponível primeiro */
+  --board:max(240px,min(calc(100vh - var(--stage-chrome)),calc(100vw - var(--rail-w) - var(--eval-w) - var(--eval-gap) - var(--gutter)*3 - 14px),880px));
+  --board:max(240px,min(calc(100dvh - var(--stage-chrome)),calc(100vw - var(--rail-w) - var(--eval-w) - var(--eval-gap) - var(--gutter)*3 - 14px),880px));
+  --stage-w:calc(var(--board) + var(--eval-w) + var(--eval-gap));
+  --pane-h:calc(100vh - var(--top-h) - 214px);
+  --pane-h:calc(100dvh - var(--top-h) - 214px);
+}
+
+/* =========================================================
+   2. RESET / BASE
+   ========================================================= */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg);color:var(--tx);
+  font:14px/1.5 var(--sans);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  overflow:hidden;
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3,h4,p{margin:0}
+b,strong{font-weight:650}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+::selection{background:var(--accent-dim);color:var(--tx)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#2f353d;border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:#3c434d;background-clip:padding-box}
+::-webkit-scrollbar-track{background:transparent}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* =========================================================
+   3. PRIMITIVAS
+   ========================================================= */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  height:32px;padding:0 13px;border-radius:var(--r-sm);
+  background:var(--surface-2);border:1px solid var(--line);
+  font-size:13.5px;font-weight:550;color:var(--tx-2);white-space:nowrap;flex:0 0 auto;
+  transition:background .18s var(--ease),color .18s var(--ease),border-color .18s var(--ease),transform .12s var(--ease);
+}
+.btn:hover{background:var(--surface-3);color:var(--tx);border-color:#333a44}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn.primary{
+  background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:650;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
+}
+.btn.primary:hover{background:var(--accent-hi);color:var(--accent-ink)}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover{background:var(--surface-2);border-color:var(--line)}
+.btn.icon{width:32px;padding:0}
+.btn.sm{height:28px;padding:0 10px;font-size:12.5px}
+.btn svg{width:15px;height:15px;flex:0 0 15px;fill:currentColor}
+.btn.icon svg{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.grow{flex:1}
+
+.row{display:flex;gap:8px;align-items:center}
+.row>*{min-width:0}
+
+.field{display:flex;flex-direction:column;gap:7px}
+.field label{font-size:11.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-3)}
+.field .help{font-size:12px;color:var(--tx-3)}
+textarea,input[type=text],select{
+  background:var(--bg-deep);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:9px 11px;outline:none;width:100%;
+  transition:border-color .18s var(--ease),background .18s var(--ease);
+}
+textarea::placeholder,input::placeholder{color:#5d646d}
+textarea:hover,input[type=text]:hover,select:hover{border-color:#333a44}
+textarea:focus,input[type=text]:focus,select:focus{border-color:var(--accent);background:#0e1012}
+textarea{
+  min-height:118px;resize:vertical;
+  font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--tx-2);
+}
+select{
+  appearance:none;cursor:pointer;height:32px;padding:0 30px 0 11px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%23a4abb4' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat:no-repeat;background-position:right 9px center;background-size:12px;
+  font-size:13px;color:var(--tx-2);
+}
+input[type=text]{height:32px;font-size:13.5px}
+
+.hint{font-size:12.5px;line-height:1.55;color:var(--tx-3)}
+.hint b{color:var(--tx-2);font-weight:600}
+.caption{font-size:11.5px;color:var(--tx-3);margin-top:8px;letter-spacing:.01em}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md)}
+.pad{padding:var(--pad)}
+h3.sub{
+  margin:22px calc(var(--pad)*-1) 12px;padding:16px var(--pad) 0;
+  border-top:1px solid var(--hair);
+  font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--tx-3);
+}
+
+.empty{padding:22px 2px 8px;color:var(--tx-3);font-size:13px;line-height:1.65}
+.empty .rule{display:block;width:24px;height:2px;border-radius:2px;background:var(--accent-dim);margin-bottom:14px}
+.empty strong{display:block;color:var(--tx-2);font-size:14px;font-weight:600;margin-bottom:3px}
+.empty b{color:var(--tx-2);font-weight:600}
+
+/* =========================================================
+   4. SHELL DO APP  (topo fixo + palco fixo + trilho rolante)
+   ========================================================= */
+.app{height:100vh;height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr)}
+
+.topbar{
+  height:var(--top-h);display:flex;align-items:center;gap:14px;
+  padding:0 var(--gutter);border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,#171a1f,#131519);
+}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand .mark{
+  width:28px;height:28px;flex:0 0 28px;
+  display:grid;place-items:center;overflow:visible;
+}
+.brand .mark svg{width:26px;height:26px;display:block}
+.brand-txt{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.brand-txt b{font-family:var(--display);font-size:14.5px;font-weight:650;letter-spacing:-.01em}
+.brand-txt span{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--tx-3)}
+
+.toolbar{display:flex;align-items:center;gap:8px;margin-left:auto}
+.ctl{display:flex;align-items:center;gap:8px}
+.ctl-k{font-size:10.5px;font-weight:650;letter-spacing:.11em;text-transform:uppercase;color:var(--tx-3)}
+.ctl select{width:auto;min-width:150px}
+.tool-sep{width:1px;height:20px;background:var(--line);margin:0 2px}
+
+.workspace{
+  display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w);
+  gap:var(--gutter);padding:16px var(--gutter);
+  min-height:0;overflow:hidden;
+}
+
+/* ---------- palco do tabuleiro ---------- */
+.stage{display:flex;flex-direction:column;align-items:center;gap:10px;min-height:0}
+.stage>*{width:var(--stage-w);max-width:100%}
+
+.nameplate{
+  display:flex;align-items:center;gap:9px;height:30px;min-width:0;
+  padding-left:calc(var(--eval-w) + var(--eval-gap));
+}
+.nameplate .dot{
+  width:11px;height:11px;flex:0 0 11px;border-radius:3px;
+  background:#2b3037;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+}
+.nameplate .nm{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nameplate .el{font-family:var(--mono);font-size:12px;color:var(--tx-3);flex:0 0 auto}
+.nameplate .acc{
+  display:inline-flex;align-items:center;margin-left:auto;
+  font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--tx-2);
+  padding:3px 8px;border-radius:var(--r-xs);
+  background:var(--surface-2);border:1px solid var(--line);
+}
+
+.board-bay{display:flex;gap:var(--eval-gap);align-items:stretch}
+.evalbar{
+  width:var(--eval-w);flex:0 0 var(--eval-w);position:relative;overflow:hidden;
+  border-radius:4px;background:#23272d;box-shadow:inset 0 0 0 1px rgba(0,0,0,.5);
+}
+.evalbar .white{
+  position:absolute;left:0;right:0;bottom:0;height:50%;background:#e9e6df;
+  transition:height .4s var(--ease);
+}
+.evalbar .txt{
+  position:absolute;left:0;right:0;bottom:3px;text-align:center;z-index:2;
+  font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:-.03em;color:#15171a;
+}
+.evalbar .txt.up{bottom:auto;top:3px}
+
+.board-frame{
+  width:var(--board);height:var(--board);position:relative;
+  border-radius:var(--r-sm);overflow:hidden;
+  box-shadow:0 0 0 1px rgba(0,0,0,.55),0 26px 50px -34px rgba(0,0,0,.9);
+}
+#board{width:100%;height:100%;aspect-ratio:1;display:block;touch-action:manipulation;cursor:pointer}
+
+.explore-bar{
+  display:none;align-items:center;gap:9px;height:34px;padding:0 6px 0 11px;
+  border-radius:var(--r-sm);border:1px solid #3d3a26;background:#1e1c14;color:#cfc38d;
+  font-size:12.5px;letter-spacing:.01em;
+}
+.explore-bar.on{display:flex}
+.explore-bar svg{width:14px;height:14px;flex:0 0 14px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.8}
+.explore-bar .btn{margin-left:auto;color:#e0d6a4}
+.explore-bar .btn:hover{background:#2a2718;border-color:#4a4629;color:#f0e7bd}
+
+.controls{display:flex;align-items:center;gap:8px}
+.btn-group{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+.btn-group .btn{border:0;border-radius:0;background:transparent;width:38px;padding:0}
+.btn-group .btn+.btn{box-shadow:inset 1px 0 0 var(--line)}
+.btn-group .btn svg{width:14px;height:14px;flex:0 0 14px;fill:currentColor;stroke:none}
+.btn-group .btn.play{width:44px;color:var(--tx)}
+.btn-group .btn.play svg{width:17px;height:17px;flex:0 0 17px}
+.btn-group .btn.play.on{background:var(--accent);color:var(--accent-ink)}
+.btn-group .btn.play.on:hover{background:var(--accent-hi)}
+.controls .sp{flex:1}
+.controls .speed{
+  width:auto;height:32px;padding:0 26px 0 9px;font-size:12.5px;
+  background-color:var(--surface-2);background-position:right 7px center;color:var(--tx-3);
+}
+.controls .speed:hover{color:var(--tx-2)}
+#btnSound svg{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+#btnSound svg path:first-child{fill:currentColor}
+#btnSound.off{color:var(--tx-3)}
+
+/* ---------- trilho direito ---------- */
+.rail{
+  display:flex;flex-direction:column;gap:14px;
+  min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:3px;
+}
+
+/* status da análise */
+.status{padding:13px 14px 14px}
+.status-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.status-head b{font-size:13px;font-weight:600}
+.status-head span{font-family:var(--mono);font-size:12px;color:var(--tx-2)}
+.prog{height:3px;background:#23272e;border-radius:99px;overflow:hidden;margin-top:10px}
+.prog i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;position:relative;overflow:hidden;transition:width .25s var(--ease)}
+.prog i::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);
+  transform:translateX(-100%);animation:sheen 1.7s var(--ease) infinite;
+}
+@keyframes sheen{to{transform:translateX(100%)}}
+.status-msg{font-size:12px;color:var(--tx-3);margin-top:8px;min-height:16px}
+
+/* =========================================================
+   5. ABAS
+   ========================================================= */
+.panel-main{overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.tabs button{
+  flex:1;height:42px;font-size:13px;font-weight:600;color:var(--tx-3);
+  position:relative;transition:color .18s var(--ease),background .18s var(--ease);
+}
+.tabs button:hover{color:var(--tx-2);background:rgba(255,255,255,.02)}
+.tabs button+button{box-shadow:inset 1px 0 0 var(--hair)}
+.tabs button.on{color:var(--tx);background:var(--surface)}
+.tabs button.on::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--accent);
+}
+.tabpane{display:none}
+.tabpane.on{display:block}
+
+/* =========================================================
+   6. IMPORTAR
+   ========================================================= */
+#tab-import .row{margin-top:12px}
+.drop{
+  margin-top:12px;display:flex;align-items:center;justify-content:center;gap:9px;
+  border:1px dashed #333a43;border-radius:var(--r-sm);padding:15px;
+  color:var(--tx-3);font-size:12.5px;
+  transition:border-color .18s var(--ease),color .18s var(--ease),background .18s var(--ease);
+}
+.drop svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.drop.hot{border-color:var(--accent);color:var(--accent-hi);background:rgba(144,129,218,.09)}
+.gamelist{margin-top:12px;max-height:min(38vh,330px);overflow:auto;border-top:1px solid var(--hair)}
+.gamelist button{
+  display:block;width:100%;text-align:left;padding:10px 2px;
+  border-bottom:1px solid var(--hair);font-size:13px;color:var(--tx-2);
+  transition:color .15s var(--ease),padding-left .18s var(--ease);
+}
+.gamelist button:hover{color:var(--tx);padding-left:6px}
+.gamelist button b{color:var(--tx);font-weight:600}
+.gamelist .meta{color:var(--tx-3);font-size:11.5px;margin-top:3px;font-family:var(--mono);letter-spacing:-.01em}
+
+/* =========================================================
+   7. RELATÓRIO
+   ========================================================= */
+.accbox{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+.accbox .side{padding:13px 14px;min-width:0;background:var(--surface-2)}
+.accbox .side+.side{border-left:1px solid var(--line)}
+.accbox .side .k{
+  font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.accbox .side .v{font-family:var(--mono);font-size:27px;font-weight:600;letter-spacing:-.035em;line-height:1.25;margin-top:2px}
+.accbox .side .u{font-size:11px;color:var(--tx-3);margin-top:-1px}
+#graph{
+  width:100%;height:110px;display:block;margin-top:14px;cursor:crosshair;
+  background:#14171b;border:1px solid var(--hair);border-radius:var(--r-sm);
+}
+.report-grid{
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+  margin-top:18px;font-size:13px;
+}
+.report-grid .r{display:contents}
+.report-grid .w,.report-grid .b,.report-grid .lbl{padding:7px 0;border-top:1px solid var(--hair)}
+.report-grid .w{text-align:right;font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+.report-grid .b{text-align:left;font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+.report-grid .lbl{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  color:var(--tx-2);font-size:12.5px;white-space:nowrap;padding-left:18px;padding-right:18px;
+}
+.chip{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 8px}
+.keymove{
+  display:flex;align-items:center;gap:8px;width:100%;height:auto;
+  padding:9px 0;border:0;border-bottom:1px solid var(--hair);border-radius:0;
+  text-align:left;font-size:13px;color:var(--tx-2);
+}
+.keymove:hover{background:transparent;color:var(--tx);border-color:var(--line)}
+.keymove:last-child{border-bottom:0}
+.keymove b{font-family:var(--mono);color:var(--tx);font-weight:600;flex:0 0 auto}
+.keymove .hint{margin-left:auto;text-align:right}
+.keymove .ic{flex:0 0 15px}
+
+/* =========================================================
+   8. LANCES
+   ========================================================= */
+.moves{max-height:var(--pane-h);overflow:auto;padding:6px 8px 10px;overscroll-behavior:contain}
+.mrow{display:grid;grid-template-columns:36px 1fr 1fr;align-items:center;gap:3px;border-radius:var(--r-xs)}
+.mrow:nth-of-type(even){background:rgba(255,255,255,.016)}
+.mrow .no{
+  font-family:var(--mono);font-size:11.5px;color:var(--tx-3);
+  text-align:right;padding-right:9px;font-variant-numeric:tabular-nums;
+}
+.mv{
+  display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:var(--r-xs);
+  font-size:13.5px;font-weight:600;cursor:pointer;
+  transition:background .14s var(--ease),color .14s var(--ease);
+}
+.mv:hover{background:var(--surface-3)}
+.mv.on{background:#2a3038;box-shadow:inset 2px 0 0 var(--accent)}
+.mv .ic{width:15px;height:15px;flex:0 0 15px}
+.mv .ev{
+  margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:500;
+  color:var(--tx-3);font-variant-numeric:tabular-nums;letter-spacing:-.03em;
+}
+
+/* =========================================================
+   9. MOTOR
+   ========================================================= */
+.pv{font-size:13px;line-height:1.65;color:var(--tx-3);word-break:break-word}
+.pv b{color:var(--tx-2);font-family:var(--mono);font-size:12px;font-weight:600}
+.pvline{padding:10px 0;border-bottom:1px solid var(--hair)}
+.pvline:first-child{padding-top:2px}
+.pvline:last-child{border-bottom:0}
+.pvline .sc{
+  display:inline-block;min-width:50px;padding:2px 7px;border-radius:var(--r-xs);
+  background:#e6e3dc;color:#15171a;font-family:var(--mono);font-size:11.5px;font-weight:700;
+  text-align:center;margin-right:9px;letter-spacing:-.03em;
+}
+.pvline .sc.neg{background:#2a2e35;color:#dfe1e5;box-shadow:inset 0 0 0 1px #363c45}
+.pvmove{cursor:pointer;color:var(--tx-2);transition:color .14s var(--ease)}
+.pvmove:hover{color:var(--accent-hi)}
+
+/* =========================================================
+   10. LEGENDA / TOAST
+   ========================================================= */
+.legend{padding:0 2px 4px}
+.legend h3{
+  font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--tx-3);margin-bottom:10px;
+}
+.badge-legend{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12px;color:var(--tx-3)}
+.badge-legend span{display:flex;align-items:center;gap:6px}
+.badge-legend .ic{width:14px;height:14px;flex:0 0 14px}
+
+.toast{
+  position:fixed;left:50%;bottom:26px;z-index:60;
+  transform:translateX(-50%) translateY(10px);
+  background:#1e2228;color:var(--tx);border:1px solid var(--line);
+  padding:10px 16px;border-radius:var(--r-sm);font-size:13.5px;
+  box-shadow:0 18px 40px -22px rgba(0,0,0,.95);
+  opacity:0;pointer-events:none;
+  transition:opacity .22s var(--ease),transform .28s var(--ease);
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* =========================================================
+   11. RESPONSIVO
+   ========================================================= */
+@media (max-width:980px){
+  :root{
+    --gutter:12px;--pad:14px;--top-h:88px;
+    --board:min(calc(100vh - 292px),calc(100vw - var(--gutter)*2 - var(--eval-w) - var(--eval-gap)));
+    --board:min(calc(100dvh - 292px),calc(100vw - var(--gutter)*2 - var(--eval-w) - var(--eval-gap)));
+    --pane-h:56vh;
+  }
+  html,body{height:auto}
+  body{overflow-x:hidden;overflow-y:auto}
+  .app{height:auto;display:block}
+  /* altura fixa e conhecida: o palco gruda exatamente embaixo do topo */
+  .topbar{
+    position:sticky;top:0;z-index:30;height:var(--top-h);overflow:hidden;
+    padding:8px var(--gutter);flex-wrap:wrap;align-content:center;row-gap:8px;
+  }
+  .toolbar{width:100%;margin-left:0;overflow-x:auto;scrollbar-width:none}
+  .toolbar::-webkit-scrollbar{display:none}
+  #btnAnalyze{order:-1}
+  .ctl{order:1}
+  .ctl-k{display:none}
+  .ctl select{min-width:130px}
+  .workspace{display:block;padding:0;overflow:visible}
+  .stage{
+    position:sticky;top:var(--top-h);z-index:20;
+    background:var(--bg);padding:10px var(--gutter) 12px;
+    border-bottom:1px solid var(--line);gap:8px;
+  }
+  .rail{overflow:visible;padding:14px var(--gutter) 26px}
+  .board-frame{box-shadow:0 0 0 1px rgba(0,0,0,.55)}
+}
+@media (max-width:560px){
+  .brand-txt span{display:none}
+  .toolbar{gap:6px}
+  .tool-sep{display:none}
+  .btn{padding:0 11px}
+  .accbox{grid-template-columns:1fr}
+  .accbox .side+.side{border-left:0;border-top:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ topo ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="12.5" fill="none" stroke="var(--tx-3)" stroke-width="2"/><rect x="9.5" y="16" width="6.5" height="6.5" fill="var(--tx)"/><rect x="16" y="9.5" width="6.5" height="6.5" fill="var(--accent)"/></svg></span>
+      <span class="brand-txt">
+        <b>Plyscope</b>
+        <span>Cada lance sob a lupa · motor local</span>
+      </span>
+    </div>
+
+    <div class="toolbar">
+      <label class="ctl" for="depth">
+        <span class="ctl-k">Profundidade</span>
+        <select id="depth" title="Profundidade da análise">
+          <option value="12">Rápida · prof. 12</option>
+          <option value="16" selected>Padrão · prof. 16</option>
+          <option value="20">Profunda · prof. 20</option>
+        </select>
+      </label>
+      <span class="tool-sep"></span>
+      <button class="btn icon" id="btnFlip" title="Girar tabuleiro (F)" aria-label="Girar tabuleiro">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21V5m0 0L4 8m3-3 3 3M17 3v16m0 0 3-3m-3 3-3-3"/></svg>
+      </button>
+      <button class="btn" id="btnNew">Nova partida</button>
+      <button class="btn primary" id="btnAnalyze" disabled>Analisar partida</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+
+    <!-- ============ palco: tabuleiro sempre visível ============ -->
+    <section class="stage">
+      <div class="nameplate">
+        <span class="dot" id="dotTop"></span>
+        <span class="nm" id="nmTop">Pretas</span>
+        <span class="el" id="elTop"></span>
+        <span class="acc" id="accTop" style="display:none"></span>
+      </div>
+
+      <div class="board-bay">
+        <div class="evalbar" id="evalbar">
+          <div class="white" id="evalWhite"></div>
+          <div class="txt" id="evalTxt">0.0</div>
+        </div>
+        <div class="board-frame">
+          <svg id="board" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+            <g id="gSquares"></g>
+            <g id="gHigh"></g>
+            <g id="gPieces"></g>
+            <g id="gArrows"></g>
+            <g id="gBadge"></g>
+            <g id="gCoords"></g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="nameplate">
+        <span class="dot" id="dotBot" style="background:#e9e6df"></span>
+        <span class="nm" id="nmBot">Brancas</span>
+        <span class="el" id="elBot"></span>
+        <span class="acc" id="accBot" style="display:none"></span>
+      </div>
+
+      <div class="explore-bar" id="exploreBar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V9a3 3 0 0 1 3-3h9"/><path d="m15 3 3 3-3 3"/></svg>
+        <span>Explorando variação</span>
+        <button class="btn ghost sm" id="btnBackToGame">Voltar à partida</button>
+      </div>
+
+      <div class="controls">
+        <div class="btn-group">
+          <button class="btn" id="btnStart" title="Início (Home)" aria-label="Início">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5.4v13.2L8.6 12z"/><rect x="5.6" y="5.4" width="2" height="13.2" rx=".7"/></svg>
+          </button>
+          <button class="btn" id="btnPrev" title="Anterior (seta esquerda)" aria-label="Lance anterior">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5.4v13.2L6.6 12z"/></svg>
+          </button>
+          <button class="btn play" id="btnPlay" title="Passar os lances automaticamente (espaço)" aria-label="Reproduzir a partida">
+            <svg viewBox="0 0 24 24" aria-hidden="true" id="icoPlay"><path d="M7.5 4.8v14.4L19 12z"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true" id="icoPause" style="display:none"><rect x="6.6" y="5" width="3.8" height="14" rx="1"/><rect x="13.6" y="5" width="3.8" height="14" rx="1"/></svg>
+          </button>
+          <button class="btn" id="btnNext" title="Próximo (seta direita)" aria-label="Próximo lance">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.4v13.2L17.4 12z"/></svg>
+          </button>
+          <button class="btn" id="btnEnd" title="Fim (End)" aria-label="Fim">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5.4v13.2L15.4 12z"/><rect x="16.4" y="5.4" width="2" height="13.2" rx=".7"/></svg>
+          </button>
+        </div>
+        <select id="speed" class="speed" title="Velocidade da reprodução" aria-label="Velocidade">
+          <option value="600">0,6 s</option>
+          <option value="1200" selected>1,2 s</option>
+          <option value="2000">2 s</option>
+          <option value="3500">3,5 s</option>
+        </select>
+        <span class="sp"></span>
+        <button class="btn icon" id="btnSound" title="Som (M)" aria-label="Ligar ou desligar o som">
+          <svg viewBox="0 0 24 24" aria-hidden="true" id="icoSoundOn"><path d="M5 9.5h3l4.5-3.6v12.2L8 14.5H5z"/><path d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.6a7.6 7.6 0 0 1 0 10.8"/></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true" id="icoSoundOff" style="display:none"><path d="M5 9.5h3l4.5-3.6v12.2L8 14.5H5z"/><path d="m16.5 9.5 5 5m0-5-5 5"/></svg>
+        </button>
+        <button class="btn sm" id="btnCopyFen" title="Copiar FEN da posição">FEN</button>
+        <button class="btn sm" id="btnCopyPgn" title="Copiar PGN da partida">PGN</button>
+      </div>
+    </section>
+
+    <!-- ============ trilho de painéis ============ -->
+    <aside class="rail">
+
+      <div class="panel status" id="panelStatus" style="display:none">
+        <div class="status-head">
+          <b id="statusTitle">Analisando…</b>
+          <span id="statusPct">0%</span>
+        </div>
+        <div class="prog"><i id="progBar"></i></div>
+        <div class="status-msg" id="statusMsg"></div>
+      </div>
+
+      <div class="panel panel-main">
+        <div class="tabs">
+          <button data-tab="import" class="on">Importar</button>
+          <button data-tab="report">Relatório</button>
+          <button data-tab="moves">Lances</button>
+          <button data-tab="engine">Motor</button>
+        </div>
+
+        <!-- IMPORTAR -->
+        <div class="tabpane on" id="tab-import">
+          <div class="pad">
+            <div class="field">
+              <label for="pgnBox">PGN da partida</label>
+              <textarea id="pgnBox" spellcheck="false" placeholder="[Event &quot;...&quot;]&#10;1. e4 e5 2. Nf3 Nc6 ..."></textarea>
+              <span class="help">Cole o texto completo. Vários jogos no mesmo PGN viram uma lista.</span>
+            </div>
+            <div class="row">
+              <button class="btn primary grow" id="btnLoadPgn">Carregar PGN</button>
+              <button class="btn" id="btnPickFile">Arquivo .pgn</button>
+              <input type="file" id="fileInput" accept=".pgn,.txt" style="display:none">
+            </div>
+            <div class="drop" id="drop">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+              <span>arraste um arquivo .pgn aqui</span>
+            </div>
+
+            <h3 class="sub">Buscar partidas online</h3>
+            <div class="row">
+              <select id="site" style="width:132px;flex:0 0 132px">
+                <option value="chesscom">Chess.com</option>
+                <option value="lichess">Lichess</option>
+              </select>
+              <input type="text" id="userBox" placeholder="seu usuário" autocomplete="off" spellcheck="false">
+              <button class="btn" id="btnFetch">Buscar</button>
+            </div>
+            <div class="hint" id="fetchHint" style="margin-top:9px">Traz suas últimas partidas públicas. Sem login, sem custo.</div>
+            <div class="gamelist" id="gameList"></div>
+          </div>
+        </div>
+
+        <!-- RELATÓRIO -->
+        <div class="tabpane" id="tab-report">
+          <div class="pad" id="reportBody">
+            <div class="empty">
+              <span class="rule"></span>
+              <strong>Relatório da partida</strong>
+              Carregue um PGN e clique em <b>Analisar partida</b> para ver precisão, classificação de cada lance e os momentos decisivos.
+            </div>
+          </div>
+        </div>
+
+        <!-- LANCES -->
+        <div class="tabpane" id="tab-moves">
+          <div class="moves" id="movesBody">
+            <div class="empty" style="padding-left:8px">
+              <span class="rule"></span>
+              <strong>Nenhuma partida carregada</strong>
+              Importe um PGN para navegar lance a lance.
+            </div>
+          </div>
+        </div>
+
+        <!-- MOTOR -->
+        <div class="tabpane" id="tab-engine">
+          <div class="pad">
+            <div id="engineLines" class="pv">
+              <div class="empty">
+                <span class="rule"></span>
+                <strong>Motor ocioso</strong>
+                Analise a partida ou avalie só esta posição para ver as melhores linhas.
+              </div>
+            </div>
+            <div class="row" style="margin-top:14px">
+              <button class="btn grow" id="btnDeep">Analisar esta posição a fundo</button>
+              <button class="btn" id="btnStopDeep" style="display:none">Parar</button>
+            </div>
+            <p class="hint" style="margin-top:12px">
+              Stockfish 17.1 (lite, 1 thread) roda <b>no seu computador</b>. Nenhuma posição é enviada para servidores.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <section class="legend">
+        <h3>Legenda</h3>
+        <div class="badge-legend" id="legend"></div>
+      </section>
+
+    </aside>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<svg style="display:none" id="pieceDefs" xmlns="http://www.w3.org/2000/svg"><defs>
+<!--__PIECES__-->
+</defs></svg>
+
+<script>
+/*__CHESSJS__*/
+</script>
+<script>
+/*__APP__*/
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# O motor é binário: git não deve tentar diff nem normalizar quebra de linha.
+*.wasm binary
+*.png  binary
+
+# Contam como "gerados/vendor" nas estatísticas de linguagem do GitHub,
+# para o repositório não aparecer como 95% JavaScript minificado.
+index.html                        linguist-generated=true
+src/vendor/*                      linguist-vendored=true
+engine/stockfish-lite-single.js   linguist-vendored=true
+
+# Scripts do Windows precisam de CRLF para o duplo clique funcionar sempre.
+*.bat text eol=crlf
+*.ps1 text eol=crlf

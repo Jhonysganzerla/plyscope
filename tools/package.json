@@ -1,0 +1,14 @@
+{
+  "name": "plyscope-tools",
+  "private": true,
+  "description": "Ferramentas de desenvolvimento do Plyscope: teste funcional e calibração do detector de lance brilhante.",
+  "scripts": {
+    "test": "node test.js",
+    "calibrar": "node calibrar.js recall 16",
+    "tune": "node tune.js"
+  },
+  "devDependencies": {
+    "chess.js": "^1.4.0",
+    "jsdom": "^26.0.0"
+  }
+}
