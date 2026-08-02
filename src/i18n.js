@@ -191,6 +191,11 @@ const STR = {
      Capivarada fica Capivarada nas duas línguas: é o nome do selo,
      piada interna do projeto. Em inglês o significado vai no tooltip. */
   "legenda.titulo":       ["Legenda", "Legend"],
+
+  /* ---------- rodapé do trilho ---------- */
+  "rodape.codigo":        ["Código no GitHub", "Source on GitHub"],
+  "rodape.apoiar":        ["Me pague um café", "Buy me a coffee"],
+  "rodape.apoiarTitulo":  ["PIX ou GitHub Sponsors", "PIX or GitHub Sponsors"],
   "cls.brilhante":        ["Brilhante", "Brilliant"],
   "cls.excelente":        ["Excelente", "Great"],
   "cls.melhor":           ["Melhor", "Best"],

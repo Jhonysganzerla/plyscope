@@ -2020,6 +2020,14 @@ function aplicarIdioma() {
     b.classList.toggle("on", ativo);
     b.setAttribute("aria-pressed", ativo ? "true" : "false");
   }
+
+  // o apoio aponta para a seção do README na língua ativa
+  const apoio = $("linkApoio");
+  if (apoio) {
+    apoio.href = I18.idioma() === "en"
+      ? "https://github.com/Jhonysganzerla/plyscope/blob/main/README.en.md#-support-the-project"
+      : "https://github.com/Jhonysganzerla/plyscope#-apoie-o-projeto";
+  }
 }
 $("btnLangPt").onclick = () => I18.definir("pt");
 $("btnLangEn").onclick = () => I18.definir("en");
