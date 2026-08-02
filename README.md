@@ -140,9 +140,11 @@ plyscope/
 │  ├─ app.js                      análise, classificação, tabuleiro, som
 │  ├─ build.py                    junta tudo num index.html só
 │  ├─ vendor/chess.esm.js         chess.js (regras, PGN, FEN)
+│  ├─ data/openings.js            base ECO compactada (3607 posições, ~74 KB)
 │  └─ assets/pieces.svg           sprite das peças
 ├─ tools/                         só para desenvolver — nada disso é preciso para usar
 │  ├─ test.js                     teste ponta a ponta em jsdom, com Stockfish de verdade
+│  ├─ gerar-aberturas.js          regera src/data/openings.js a partir da base ECO
 │  ├─ calibrar.js                 mede o detector de Brilhante contra o benchmark
 │  └─ tune.js                     busca em grade dos limiares
 ├─ docs/
@@ -169,7 +171,15 @@ Para testar antes de publicar (roda o Stockfish de verdade, ~35 s):
 cd tools && npm install && node test.js ../docs/exemplos/opera-1858.pgn
 ```
 
-O `build.py` injeta o sprite, o chess.js e o `app.js` nos três marcadores do `shell.html` (`<!--__PIECES__-->`, `/*__CHESSJS__*/`, `/*__APP__*/`). Não remova esses marcadores.
+O `build.py` injeta o sprite, o chess.js, a base de aberturas e o `app.js` nos marcadores do `shell.html` (`<!--__PIECES__-->`, `/*__CHESSJS__*/`, `/*__OPENINGS__*/`, `/*__APP__*/`). Não remova esses marcadores.
+
+A base de aberturas é gerada, não editada à mão. Para atualizá-la:
+
+```bash
+cd /tmp && npm pack chess-openings && tar xzf chess-openings-*.tgz
+node tools/gerar-aberturas.js /tmp/package/dist/chess/openings/eco.js
+python3 src/build.py
+```
 
 ## Como a classificação funciona
 
@@ -196,6 +206,7 @@ Este app é uma casca em volta de trabalho de outras pessoas:
 
 - **[Stockfish](https://stockfishchess.org/)** — o motor. GPLv3. Build WebAssembly de **[nmrugg/stockfish.js](https://github.com/nmrugg/stockfish.js)** (`stockfish-17.1-lite-single`). Licença completa em `engine/LICENSE-stockfish-GPLv3.txt`.
 - **[chess.js](https://github.com/jhlywa/chess.js)** — regras, geração de lances, PGN e FEN. Licença BSD.
+- **[lichess-org/chess-openings](https://github.com/lichess-org/chess-openings)** — a base ECO (código, nome e linha de cada abertura) que identifica a abertura da partida. **CC0 1.0 — domínio público.** Chegou aqui pelo pacote npm **[chess-openings](https://www.npmjs.com/package/chess-openings)** de Guido Flohr (WTFPL), que redistribui essa mesma classificação; só os dados foram aproveitados, compactados por `tools/gerar-aberturas.js` em `src/data/openings.js`. Os nomes de família foram vertidos para o português nesse mesmo passo.
 - **Peças** — sprite do **[cm-chessboard](https://github.com/shaack/cm-chessboard)**, desenhadas por **Cburnett** (Wikimedia Commons), **CC BY-SA 3.0**. Se você redistribuir as peças, mantenha a atribuição e a mesma licença.
 - **[Lichess](https://lichess.org)** — pelas fórmulas de precisão e de chance de vitória, publicadas e explicadas.
 - **Chess.com** — pelo Game Review, que é o alvo de comparação, e pelo Brilliant Move Benchmark ter um gabarito para medir.
@@ -207,7 +218,7 @@ Este app é uma casca em volta de trabalho de outras pessoas:
 
 Na prática: use, estude, modifique e redistribua à vontade; se distribuir uma versão modificada, ela também precisa ser GPLv3 e vir com o código.
 
-O chess.js é BSD (compatível) e as peças são CC BY-SA 3.0, que exige atribuição — as duas coisas estão preservadas nos créditos acima.
+O chess.js é BSD (compatível) e as peças são CC BY-SA 3.0, que exige atribuição — as duas coisas estão preservadas nos créditos acima. A base de aberturas é CC0 (domínio público), então não impõe condição nenhuma; ainda assim está creditada.
 
 ## Roadmap
 
