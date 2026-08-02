@@ -100,6 +100,10 @@ Dê **dois cliques em `Abrir Plyscope.bat`**.
 
 Ele liga um servidor local minúsculo (PowerShell, já vem no Windows) e abre `http://localhost:8123/index.html` no seu navegador. Deixe a janela preta aberta enquanto usa; feche para encerrar.
 
+### Na web
+
+O projeto é estático: `index.html` + `engine/`. Sobe em Vercel, GitHub Pages, Cloudflare Pages ou Netlify sem build nenhum — o passo a passo está em [`docs/PUBLICAR.md`](docs/PUBLICAR.md). O `vercel.json` já serve o `.wasm` com o tipo certo e cache de um ano.
+
 ### Qualquer outro sistema
 
 Sirva a pasta com qualquer servidor estático:
@@ -144,6 +148,7 @@ plyscope/
 ├─ docs/
 │  ├─ MANUAL.md                   manual do usuário final
 │  ├─ BENCHMARK.md                como a calibração foi feita e medida
+│  ├─ PUBLICAR.md                 subir no GitHub e na Vercel
 │  └─ exemplos/opera-1858.pgn     partida para testar em 10 segundos
 ├─ brand/
 │  ├─ logo.svg  mark.svg  icon.svg  favicon.svg
