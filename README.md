@@ -267,13 +267,22 @@ O chess.js é BSD (compatível) e as peças são CC BY-SA 3.0, que exige atribui
 
 Curto e honesto. Sem datas.
 
-- [ ] **Subir de 87 para 90+ no benchmark.** Os 13 casos que faltam estão mapeados: quase todos são sacrifício posicional de longo prazo, onde a compensação só aparece bem depois da profundidade que a segunda passada usa.
-- [ ] **Nome da abertura no relatório** (ECO). Hoje o relatório começa no lance 1 sem dizer o que foi jogado.
-- [ ] **Salvar as análises** no navegador, para reabrir a partida sem reanalisar.
-- [ ] **Exportar o relatório** como imagem ou PGN comentado.
-- [ ] **Launcher para macOS e Linux** — hoje só existe o `.bat`; nos outros sistemas é `python3 -m http.server` na mão.
-- [ ] **Stockfish multi-thread**, que é bem mais rápido. Exige servir a página com os cabeçalhos `COOP`/`COEP`, o que o servidor de uma linha não faz — precisa ser opcional, e sem quebrar quem usa o `.bat`.
-- [ ] **Interface em inglês.** Hoje é só pt-BR. O `Capivarada` fica.
+Feito desde a primeira versão pública:
+
+- [x] **Benchmark de brilhantes: 43 → 87 → 93 de 100**, com os mesmos 4 falsos positivos em 416 lances comuns.
+- [x] **Nome da abertura** (ECO) no relatório e na lista de partidas, com base CC0 embutida e detecção por posição — pega transposição.
+- [x] **Análises salvas** no navegador: reabrir é instantâneo e não toca no motor.
+- [x] **Exportar** PGN comentado (com NAG e `[%eval]`, relido por Lichess/SCID) e imagem PNG do relatório.
+- [x] **Launchers para macOS e Linux** (`plyscope.sh`, `Abrir Plyscope.command`), com os mesmos cabeçalhos do servidor do Windows.
+- [x] **Stockfish multi-thread** automático quando a página está cross-origin isolated, com queda para 1 thread e aviso do modo na aba Motor.
+- [x] **Interface em inglês**, com troca de idioma na própria interface.
+
+O que ainda não está fechado:
+
+- [ ] **Os 7 casos que faltam no benchmark.** Três são limite de profundidade e não de detecção — o `calibrar.js` mede em profundidade fixa e não simula a segunda passada do app. Vale medir do jeito certo antes de mexer na regra.
+- [ ] **Análise da abertura contra a teoria**: dizer *onde* saiu do livro e qual era o lance de livro.
+- [ ] **Exportar a partida anotada como GIF ou vídeo curto**, para compartilhar sem pedir para a pessoa clicar.
+- [ ] **Modo treino:** esconder o lance jogado e pedir para você achar o melhor, usando as próprias partidas.
 
 **Fora de escopo, de propósito:** conta de usuário, backend, ranking, banco de partidas na nuvem, análise "com IA" que não seja o motor. Se um recurso exige servidor, ele não entra.
 
