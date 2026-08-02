@@ -590,6 +590,7 @@ function loadPgn(pgn) {
   $("reportBody").innerHTML = aberturaHtml(S.abertura) +
     '<div class="empty"><span class="rule"></span><strong>Partida carregada</strong>' +
     'Clique em <b>Analisar partida</b> para gerar precisão, classificação dos lances e momentos decisivos.</div>';
+  if ($("exportRow")) $("exportRow").style.display = "none";
   showTab("moves");
   return true;
 }
@@ -705,6 +706,7 @@ async function analyzeGame() {
   if (!S.cancel) {
     S.accuracy = gameAccuracy();
     renderReport();
+    salvarAnalise();
     showTab("report");
     Snd.pronto();
     $("statusTitle").textContent = "Análise concluída";
@@ -1038,6 +1040,7 @@ function renderReport() {
     <div class="report-grid">${rows}</div>
     ${keyHtml}`;
   $("reportBody").querySelectorAll("[data-goto]").forEach((b) => (b.onclick = () => goTo(+b.dataset.goto)));
+  if ($("exportRow")) $("exportRow").style.display = "";
   drawGraph();
 }
 function esc(s) { return String(s).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])); }
@@ -1407,7 +1410,510 @@ $("legend").innerHTML = CLS_ORDER.map((k) => `<span>${icon(k, 14)}${CLS[k].nome}
 
 window.addEventListener("resize", () => drawGraph());
 
+/* ============================================================
+   Análises salvas
+   ------------------------------------------------------------
+   ONDE: localStorage, chave "plyscope.analises.v1".
+
+   POR QUÊ localStorage e não IndexedDB — o que precisa ser guardado
+   para redesenhar a tela é pequeno: jogamos fora a variação principal
+   (pv) e as linhas do motor, que respondem por quase todo o peso de
+   S.positions. Sobra uma partida de 80 lances em ~7 KB, então as 20
+   análises do limite cabem em ~140 KB, longe dos ~5 MB por origem do
+   localStorage. Em troca vem uma API síncrona (reabrir é instantâneo,
+   sem promessa nem esquema versionado) e um punhado de linhas de
+   código, num app que roda de file:// sem servidor. IndexedDB só
+   compensaria se guardássemos as pv ou centenas de partidas.
+
+   O QUE É GUARDADO: o PGN (os lances e as casas são reconstruídos por
+   loadPgn) + avaliação compacta de cada posição + classificação de
+   cada lance + precisão. Nada mais.
+   ============================================================ */
+const Saved = {
+  KEY: "plyscope.analises.v1",
+  MAX: 20,                       // guarda as mais recentes
+  _ok: null,
+  /** navegador com armazenamento bloqueado (modo privado, cookies barrados) */
+  disponivel() {
+    if (this._ok !== null) return this._ok;
+    try {
+      const k = this.KEY + ".teste";
+      window.localStorage.setItem(k, "1");
+      window.localStorage.removeItem(k);
+      this._ok = true;
+    } catch (e) { this._ok = false; }
+    return this._ok;
+  },
+  ler() {
+    if (!this.disponivel()) return [];
+    try {
+      const v = JSON.parse(window.localStorage.getItem(this.KEY) || "[]");
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+  },
+  gravar(lista) {
+    if (!this.disponivel()) return false;
+    let l = lista.slice(0, this.MAX);
+    for (;;) {
+      try { window.localStorage.setItem(this.KEY, JSON.stringify(l)); return true; }
+      catch (e) {
+        if (!cotaEstourada(e)) return false;
+        if (l.length <= 1) {                 // nem uma cabe: devolve o espaço e desiste
+          try { window.localStorage.removeItem(this.KEY); } catch (e2) {}
+          return false;
+        }
+        l = l.slice(0, l.length - 1);        // sacrifica a mais antiga e tenta de novo
+      }
+    }
+  },
+  apagar(id) { return this.gravar(this.ler().filter((r) => r.id !== id)); },
+};
+function cotaEstourada(e) {
+  return !!e && (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+                 e.code === 22 || e.code === 1014);
+}
+
+/* ---------- formato compacto (sem pv, sem lines) ---------- */
+function posParaArr(p) {
+  if (!p) return 0;
+  const a = [p.cp == null ? null : Math.round(p.cp), p.mate == null ? null : p.mate,
+             p.best || null, p.depth || 0];
+  if (p.secondWin != null) a[4] = +p.secondWin.toFixed(1);
+  if (p.mateEnd) { if (a.length < 5) a[4] = null; a[5] = 1; }
+  return a;
+}
+function arrParaPos(a) {
+  if (!a || !a.length) return null;
+  const p = { cp: a[0] == null ? null : a[0], mate: a[1] == null ? null : a[1],
+              best: a[2] || null, pv: [], depth: a[3] || 0 };
+  if (a[4] != null) p.secondWin = a[4];
+  if (a[5]) p.mateEnd = true;
+  return p;
+}
+function pmParaArr(pm) {
+  if (!pm) return 0;
+  return [CLS_ORDER.indexOf(pm.cls), +pm.loss.toFixed(1), +pm.accuracy.toFixed(1),
+          +pm.winBefore.toFixed(1), +pm.winAfter.toFixed(1), Math.round(pm.sacRisked || 0)];
+}
+function arrParaPm(a) {
+  if (!a || !a.length) return null;
+  const cls = CLS_ORDER[a[0]];
+  if (!cls) return null;
+  return { cls, loss: a[1], accuracy: a[2], winBefore: a[3], winAfter: a[4], sacRisked: a[5] || 0 };
+}
+
+function hashTxt(s) {                          // FNV-1a: id estável da partida
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
+  return h.toString(36);
+}
+
+/** PGN limpo da partida atual (headers originais + lances). */
+function pgnDaPartida() {
+  try {
+    const c = new Chess(S.fens[0]);
+    Object.entries(S.headers).forEach(([k, v]) => c.setHeader(k, v));
+    S.moves.forEach((m) => c.move(m.san));
+    return c.pgn();
+  } catch (e) { return null; }
+}
+
+function metaDaPartida() {
+  const h = S.headers || {};
+  return {
+    w: h.White || "Brancas", b: h.Black || "Pretas",
+    we: h.WhiteElo || "", be: h.BlackElo || "",
+    res: h.Result || "*", data: h.Date || h.UTCDate || "", ev: h.Event || "",
+  };
+}
+
+function salvarAnalise() {
+  try {
+    if (!S.accuracy || !S.moves.length || !Saved.disponivel()) return;
+    const pgn = pgnDaPartida();
+    if (!pgn) return;
+    const m = metaDaPartida();
+    const rec = {
+      id: hashTxt(m.w + "|" + m.b + "|" + m.data + "|" + S.moves.map((x) => x.san).join(" ")),
+      ts: Date.now(),
+      prof: +$("depth").value || null,
+      meta: m,
+      acc: { w: S.accuracy.w != null ? +S.accuracy.w.toFixed(1) : null,
+             b: S.accuracy.b != null ? +S.accuracy.b.toFixed(1) : null },
+      pgn,
+      pos: S.positions.map(posParaArr),
+      pm: S.perMove.map(pmParaArr),
+    };
+    const lista = Saved.ler().filter((r) => r && r.id !== rec.id);   // sem duplicar
+    lista.unshift(rec);
+    const ok = Saved.gravar(lista);
+    renderSaved();
+    if (!ok) toast("Não deu para salvar: armazenamento do navegador cheio.");
+  } catch (e) { /* salvar nunca pode derrubar a análise */ }
+}
+
+/** Reabre uma análise guardada — sem encostar no motor. */
+function abrirSalva(id) {
+  const rec = Saved.ler().find((r) => r && r.id === id);
+  if (!rec || !rec.pgn) { toast("Análise não encontrada."); return; }
+  if (!loadPgn(rec.pgn)) return;
+  const pos = (rec.pos || []).map(arrParaPos);
+  const pm = (rec.pm || []).map(arrParaPm);
+  if (pos.length !== S.fens.length) { toast("A análise salva não bate com a partida."); return; }
+  S.positions = pos;
+  S.perMove = pm.slice(0, S.moves.length);
+  while (S.perMove.length < S.moves.length) S.perMove.push(null);
+  S.accuracy = rec.acc && (rec.acc.w != null || rec.acc.b != null) ? rec.acc : null;
+  renderPlayers(); renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
+  renderReport(); showTab("report");
+  toast("Análise restaurada do navegador — sem rodar o motor.");
+}
+
+function renderSaved() {
+  const box = $("savedList"), hint = $("savedHint");
+  if (!box) return;
+  if (!Saved.disponivel()) {
+    box.innerHTML = "";
+    if (hint) hint.textContent = "Este navegador está com o armazenamento bloqueado — o app funciona igual, mas não guarda análises.";
+    return;
+  }
+  const lista = Saved.ler();
+  if (!lista.length) {
+    box.innerHTML = "";
+    if (hint) hint.textContent = "Nenhuma análise guardada ainda. Ao terminar uma análise ela aparece aqui e reabre na hora.";
+    return;
+  }
+  if (hint) hint.textContent = "Guardadas neste navegador (as " + Saved.MAX + " mais recentes). Clique para reabrir sem analisar de novo.";
+  box.innerHTML = lista.map((r) => {
+    const m = r.meta || {};
+    const acc = (r.acc && r.acc.w != null ? r.acc.w.toFixed(1) : "–") + "% / " +
+                (r.acc && r.acc.b != null ? r.acc.b.toFixed(1) : "–") + "%";
+    return `<div class="saved"><button data-open="${esc(r.id)}">
+        <div><b>${esc(m.w || "?")}</b> ${m.we ? "(" + esc(m.we) + ")" : ""} vs <b>${esc(m.b || "?")}</b> ${m.be ? "(" + esc(m.be) + ")" : ""}</div>
+        <div class="meta">${esc(m.res || "*")} · ${esc(m.data || "sem data")} · precisão ${acc}</div>
+      </button><button class="del" data-del="${esc(r.id)}" title="Apagar esta análise" aria-label="Apagar análise">Apagar</button></div>`;
+  }).join("");
+  box.querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => abrirSalva(b.dataset.open)));
+  box.querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => {
+    const ok = Saved.apagar(b.dataset.del);
+    renderSaved();
+    toast(ok ? "Análise apagada." : "Não consegui apagar — armazenamento indisponível.");
+  }));
+}
+
+/* ============================================================
+   Exportar — PGN comentado e imagem do relatório
+   ============================================================ */
+
+/** Baixa um Blob sem biblioteca externa. */
+function baixarBlob(blob, nome) {
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = nome; a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try { URL.revokeObjectURL(url); a.remove(); } catch (e) {} }, 2000);
+    return true;
+  } catch (e) { toast("Este navegador não deixou baixar o arquivo."); return false; }
+}
+function nomeArquivo(ext) {
+  const m = metaDaPartida();
+  const slug = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "partida";
+  const d = (m.data || "").replace(/\./g, "-").replace(/\?/g, "") || "";
+  return ["plyscope", slug(m.w), "vs", slug(m.b), d].filter(Boolean).join("-") + "." + ext;
+}
+
+/* ---------- PGN comentado ----------
+   NAG (Numeric Annotation Glyph) do padrão PGN, o mesmo dialeto que
+   Lichess, Chess.com e SCID leem:
+     brilhante  → $3  (!!  lance muito bom)
+     excelente  → $1  (!   lance bom)
+     melhor / ótimo / bom → sem NAG (nada a sinalizar; o selo vai no texto)
+     forçado    → $7  (lance forçado, único legal)
+     impreciso  → $6  (?!  lance duvidoso)
+     erro       → $2  (?   lance ruim)
+     capivarada → $4  (??  lance muito ruim)
+   Cada lance leva ainda um comentário com a avaliação no formato do
+   Lichess: { [%eval 1.24] Impreciso — perdeu 7% de chance de vitória }
+   ------------------------------------------------------------------ */
+const NAG = {
+  brilhante: "$3", excelente: "$1", melhor: "", otimo: "", bom: "",
+  forcado: "$7", impreciso: "$6", erro: "$2", capivarada: "$4",
+};
+function evalTag(p) {
+  if (!p || p.mateEnd) return null;              // mate no tabuleiro: não há o que avaliar
+  if (p.mate != null) return "#" + p.mate;       // #5 / #-3, POV brancas
+  if (p.cp == null) return null;
+  return (p.cp / 100).toFixed(2);                // 1.24 / -0.50, como o Lichess grava
+}
+function semChaves(s) { return String(s).replace(/[{}]/g, ""); }
+
+function comentarioDoLance(i) {
+  const pm = S.perMove[i];
+  if (!pm) return "";
+  let txt = CLS[pm.cls].nome;
+  if (pm.loss >= 1) txt += " — perdeu " + Math.round(pm.loss) + "% de chance de vitória";
+  const posB = S.positions[i];
+  if ((pm.cls === "impreciso" || pm.cls === "erro" || pm.cls === "capivarada") && posB && posB.best) {
+    const alt = uciLineToSan(S.fens[i], [posB.best], 1)[0];
+    if (alt && alt.san !== S.moves[i].san) txt += "; melhor era " + alt.san;
+  }
+  const tag = evalTag(S.positions[i + 1]);
+  return "{ " + (tag ? "[%eval " + tag + "] " : "") + semChaves(txt) + " }";
+}
+
+/** Quebra o texto dos lances em linhas de no máximo `larg` colunas.
+    O trecho [%eval x] nunca é partido: há leitor que só entende a marca
+    inteira numa linha só. */
+function quebrarLinhas(txt, larg) {
+  const SEP = "\u0001";
+  const tokens = txt.replace(/\[%eval ([^\]]*)\]/g, (_, v) => "[%eval" + SEP + v + "]")
+    .split(/\s+/).filter(Boolean).map((t) => t.split(SEP).join(" "));
+  const linhas = [];
+  let l = "";
+  for (const t of tokens) {
+    if (!l) l = t;
+    else if (l.length + 1 + t.length <= larg) l += " " + t;
+    else { linhas.push(l); l = t; }
+  }
+  if (l) linhas.push(l);
+  return linhas.join("\n");
+}
+
+function pgnComentado() {
+  if (!S.moves.length) return "";
+  const h = Object.assign({}, S.headers);
+  const roster = { Event: "?", Site: "?", Date: "????.??.??", Round: "?",
+                   White: "?", Black: "?", Result: "*" };
+  const tag = (k, v) => '[' + k + ' "' + String(v).replace(/["\\]/g, "") + '"]\n';
+  let out = "";
+  for (const k in roster) out += tag(k, h[k] || roster[k]);
+  for (const k of Object.keys(h)) {
+    if (k in roster || k === "Annotator") continue;
+    out += tag(k, h[k]);
+  }
+  out += tag("Annotator", "Plyscope");
+  out += "\n";
+
+  let mt = "";
+  S.moves.forEach((m, i) => {
+    mt += (m.color === "w" ? m.num + ". " : m.num + "... ") + m.san;
+    const pm = S.perMove[i];
+    if (pm && NAG[pm.cls]) mt += " " + NAG[pm.cls];
+    const c = comentarioDoLance(i);
+    if (c) mt += " " + c;
+    mt += " ";
+  });
+  mt += h.Result || "*";
+  return out + quebrarLinhas(mt, 80) + "\n";
+}
+
+function exportarPgn() {
+  if (!S.moves.length) { toast("Nenhuma partida carregada."); return; }
+  const txt = pgnComentado();
+  try {
+    const blob = new Blob([txt], { type: "application/x-chess-pgn;charset=utf-8" });
+    if (baixarBlob(blob, nomeArquivo("pgn"))) toast("PGN comentado baixado.");
+  } catch (e) { toast("Não consegui gerar o arquivo."); }
+}
+
+/* ---------- imagem do relatório (canvas puro) ---------- */
+const IMG = { bg: "#101215", card: "#1b1f25", line: "#282d35", hair: "#1f242a",
+              tx: "#e8eaed", tx2: "#a4abb4", tx3: "#767d87", accent: "#9081da",
+              gbg: "#14171b", gw: "#dcd8cf", gmid: "#3b424b" };
+const IMG_FONT = '"Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif';
+const IMG_MONO = 'ui-monospace,Consolas,"Courier New",monospace';
+
+function retangulo(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+function cortar(g, txt, max) {
+  let s = String(txt == null ? "" : txt);
+  if (g.measureText(s).width <= max) return s;
+  while (s.length > 1 && g.measureText(s + "…").width > max) s = s.slice(0, -1);
+  return s + "…";
+}
+function graficoNaImagem(g, x, y, w, h) {
+  g.save();
+  g.fillStyle = IMG.gbg; retangulo(g, x, y, w, h, 7); g.fill();
+  g.clip();
+  const n = S.positions.length;
+  const X = (i) => x + (n > 1 ? (i / (n - 1)) * w : w / 2);
+  const Y = (p) => y + h - (p / 100) * h;
+  g.beginPath(); g.moveTo(x, y + h);
+  for (let i = 0; i < n; i++) g.lineTo(X(i), Y(S.positions[i] ? winPct(scoreToCp(S.positions[i])) : 50));
+  g.lineTo(x + w, y + h); g.closePath();
+  g.fillStyle = IMG.gw; g.fill();
+  g.strokeStyle = IMG.gmid; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(x, y + h / 2); g.lineTo(x + w, y + h / 2); g.stroke();
+  S.perMove.forEach((pm, i) => {
+    if (!pm || pm.loss < 10 || !S.positions[i + 1]) return;
+    g.beginPath(); g.arc(X(i + 1), Y(winPct(scoreToCp(S.positions[i + 1]))), 4.5, 0, 7);
+    g.fillStyle = CLS[pm.cls].cor; g.fill();
+  });
+  g.restore();
+  g.strokeStyle = IMG.line; g.lineWidth = 1;
+  retangulo(g, x + .5, y + .5, w - 1, h - 1, 7); g.stroke();
+}
+
+function desenharRelatorio(cv) {
+  const counts = { w: {}, b: {} };
+  S.perMove.forEach((pm, i) => {
+    if (!pm) return;
+    const c = S.moves[i].color;
+    counts[c][pm.cls] = (counts[c][pm.cls] || 0) + 1;
+  });
+  const linhas = CLS_ORDER.filter((k) => (counts.w[k] || 0) || (counts.b[k] || 0));
+
+  const W = 860, pad = 38;
+  const yHead = 36, hHead = 76;
+  const yAcc = yHead + hHead, hAcc = 104;
+  const yGraph = yAcc + hAcc + 20, hGraph = 168;
+  const yCap = yGraph + hGraph + 22;
+  const yRows = yCap + 18, hRow = 31;
+  const yFoot = yRows + linhas.length * hRow + 30;
+  const H = yFoot + 34;
+
+  const dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 1));   // nitidez em retina
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const g = cv.getContext && cv.getContext("2d");
+  if (!g) return null;
+  g.scale(dpr, dpr);
+  g.textBaseline = "alphabetic";
+
+  // fundo opaco: PNG nunca sai transparente
+  g.fillStyle = IMG.bg; g.fillRect(0, 0, W, H);
+
+  /* --- cabeçalho: marca + partida --- */
+  g.save();
+  g.translate(pad, yHead);
+  g.strokeStyle = IMG.tx3; g.lineWidth = 2.2;
+  g.beginPath(); g.arc(17, 17, 13.5, 0, 7); g.stroke();
+  g.fillStyle = IMG.tx; g.fillRect(10, 17, 7, 7);
+  g.fillStyle = IMG.accent; g.fillRect(17, 10, 7, 7);
+  g.restore();
+  g.fillStyle = IMG.tx;
+  g.font = '700 25px ' + IMG_FONT;
+  g.fillText("Plyscope", pad + 44, yHead + 20);
+  g.fillStyle = IMG.tx3;
+  g.font = '400 12.5px ' + IMG_FONT;
+  g.fillText("Cada lance sob a lupa · análise local com Stockfish", pad + 44, yHead + 38);
+
+  const m = metaDaPartida();
+  g.textAlign = "right";
+  g.fillStyle = IMG.tx2;
+  g.font = '600 14px ' + IMG_MONO;
+  g.fillText(cortar(g, m.res || "*", 260), W - pad, yHead + 18);
+  g.fillStyle = IMG.tx3;
+  g.font = '400 12px ' + IMG_FONT;
+  g.fillText(cortar(g, [m.ev, m.data].filter(Boolean).join(" · ") || "partida sem data", 300), W - pad, yHead + 37);
+  g.textAlign = "left";
+
+  g.strokeStyle = IMG.hair; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(pad, yHead + 56.5); g.lineTo(W - pad, yHead + 56.5); g.stroke();
+
+  /* --- precisão dos dois lados --- */
+  const cw = (W - pad * 2 - 14) / 2;
+  [["w", m.w, m.we, pad], ["b", m.b, m.be, pad + cw + 14]].forEach(([lado, nome, elo, x]) => {
+    g.fillStyle = IMG.card; retangulo(g, x, yAcc, cw, hAcc, 8); g.fill();
+    g.strokeStyle = IMG.line; g.lineWidth = 1;
+    retangulo(g, x + .5, yAcc + .5, cw - 1, hAcc - 1, 8); g.stroke();
+    g.fillStyle = lado === "w" ? "#e9e6df" : "#2b3037";
+    retangulo(g, x + 16, yAcc + 19, 11, 11, 3); g.fill();
+    if (lado === "b") { g.strokeStyle = "#4a515b"; retangulo(g, x + 16.5, yAcc + 19.5, 10, 10, 3); g.stroke(); }
+    g.fillStyle = IMG.tx;
+    g.font = '600 15px ' + IMG_FONT;
+    g.fillText(cortar(g, nome + (elo ? "  (" + elo + ")" : ""), cw - 46), x + 34, yAcc + 29);
+    const v = S.accuracy && S.accuracy[lado] != null ? S.accuracy[lado].toFixed(1) : "–";
+    g.fillStyle = IMG.tx;
+    g.font = '600 40px ' + IMG_MONO;
+    g.fillText(v, x + 16, yAcc + 78);
+    const largV = g.measureText(v).width;
+    g.fillStyle = IMG.tx3;
+    g.font = '400 12.5px ' + IMG_FONT;
+    g.fillText("precisão (%)", x + 16 + largV + 11, yAcc + 78);
+  });
+
+  /* --- gráfico de vantagem --- */
+  graficoNaImagem(g, pad, yGraph, W - pad * 2, hGraph);
+  g.fillStyle = IMG.tx3;
+  g.font = '400 12px ' + IMG_FONT;
+  g.fillText("Chance de vitória das brancas ao longo da partida · " + S.moves.length + " lances", pad, yCap + 4);
+
+  /* --- contagem por tipo de lance, nas cores dos selos --- */
+  const meio = W / 2;
+  linhas.forEach((k, i) => {
+    const y = yRows + i * hRow;
+    g.strokeStyle = IMG.hair; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(pad, y + .5); g.lineTo(W - pad, y + .5); g.stroke();
+    const yb = y + 21;
+    g.fillStyle = CLS[k].cor;
+    g.textAlign = "right";
+    g.font = '600 15px ' + IMG_MONO;
+    g.fillText(String(counts.w[k] || 0), meio - 96, yb);
+    g.textAlign = "left";
+    g.fillText(String(counts.b[k] || 0), meio + 96, yb);
+    // selo + nome centralizados entre as duas contagens
+    g.font = '500 14px ' + IMG_FONT;
+    const larg = g.measureText(CLS[k].nome).width + 17;
+    const xIni = meio - larg / 2;
+    g.beginPath(); g.arc(xIni + 5, yb - 5, 5, 0, 7); g.fill();
+    g.fillStyle = IMG.tx2;
+    g.fillText(CLS[k].nome, xIni + 17, yb);
+  });
+  g.strokeStyle = IMG.hair; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(pad, yRows + linhas.length * hRow + .5); g.lineTo(W - pad, yRows + linhas.length * hRow + .5); g.stroke();
+
+  /* --- rodapé --- */
+  g.fillStyle = IMG.accent;
+  g.font = '700 13px ' + IMG_FONT;
+  g.fillText("Plyscope", pad, yFoot + 14);
+  const largMarca = g.measureText("Plyscope").width;
+  g.fillStyle = IMG.tx3;
+  g.font = '400 12.5px ' + IMG_FONT;
+  g.fillText("· relatório gerado no navegador, sem enviar nada para servidor", pad + largMarca + 7, yFoot + 14);
+  return cv;
+}
+
+function exportarImagem() {
+  if (!S.accuracy) { toast("Analise a partida primeiro."); return; }
+  let cv;
+  try { cv = document.createElement("canvas"); } catch (e) { cv = null; }
+  if (!cv || typeof cv.getContext !== "function" || !cv.getContext("2d")) {
+    toast("Este navegador não desenha em canvas — exportação de imagem indisponível.");
+    return;
+  }
+  try {
+    if (!desenharRelatorio(cv)) { toast("Não consegui desenhar a imagem."); return; }
+  } catch (e) { toast("Não consegui desenhar a imagem."); return; }
+  const nome = nomeArquivo("png");
+  if (typeof cv.toBlob === "function") {
+    cv.toBlob((b) => {
+      if (b) { if (baixarBlob(b, nome)) toast("Imagem do relatório baixada."); }
+      else toast("Não consegui gerar o PNG.");
+    }, "image/png");
+  } else if (typeof cv.toDataURL === "function") {
+    try {
+      const a = document.createElement("a");
+      a.href = cv.toDataURL("image/png"); a.download = nome;
+      a.click(); toast("Imagem do relatório baixada.");
+    } catch (e) { toast("Não consegui gerar o PNG."); }
+  } else toast("Não consegui gerar o PNG.");
+}
+
+$("btnExportPgn").onclick = exportarPgn;
+$("btnExportPng").onclick = exportarImagem;
+
 /* ---------- início ---------- */
+renderSaved();
 renderBoard(); renderEvalBar(); notaMotor();
 Engine.boot().catch(() => {});
 })();

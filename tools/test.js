@@ -28,6 +28,7 @@ const dom = new JSDOM(fs.readFileSync(HTML, "utf8"), {
 const { window } = dom;
 
 /* --- stub de Worker: engine real rodando como processo --- */
+let buscasNoMotor = 0;              // quantos "go ..." o app pediu ao motor
 window.Worker = class {
   constructor() {
     this.p = spawn("node", [ENGINE]);
@@ -42,7 +43,7 @@ window.Worker = class {
       }
     });
   }
-  postMessage(cmd) { this.p.stdin.write(cmd + "\n"); }
+  postMessage(cmd) { if (/^go\b/.test(cmd)) buscasNoMotor++; this.p.stdin.write(cmd + "\n"); }
   terminate() { this.p.kill(); }
 };
 
@@ -129,6 +130,137 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("navegação manual ainda funciona:", plyAgora());
   $("btnSound").click(); console.log("mudo:", $("btnSound").className.includes("off"));
   $("btnSound").click();
+
+  /* ================= análises salvas ================= */
+  console.log("\n== análises salvas ==");
+  const CHAVE = "plyscope.analises.v1";
+  const bruto = window.localStorage.getItem(CHAVE);
+  const lista = JSON.parse(bruto || "[]");
+  console.log("salva automaticamente ao fim da análise:", lista.length === 1,
+    "| chave:", CHAVE, "| total no armazenamento:", (bruto || "").length + " B");
+  const rec = lista[0] || {};
+  const bytes = JSON.stringify(rec).length;
+  console.log("uma análise de", (rec.pm || []).length, "lances ocupa", bytes, "B",
+    "(" + (bytes / 1024).toFixed(1) + " KB) · ~" +
+    Math.round((bytes / Math.max(1, (rec.pm || []).length)) * 80 / 1024 * 10) / 10 + " KB por 80 lances");
+  console.log("sem pv guardada:", !/\"pv\"/.test(bruto || "") && !/[a-h][1-8][a-h][1-8] [a-h][1-8]/.test(bruto || ""));
+  const itens = window.document.querySelectorAll("#savedList .saved");
+  console.log("itens na lista de salvas:", itens.length, "|",
+    (itens[0] || { textContent: "" }).textContent.replace(/\s+/g, " ").trim());
+
+  // limpa a tela recarregando o PGN cru: sem selos, sem precisão
+  $("btnLoadPgn").click(); await wait(200);
+  const selosAntes = window.document.querySelectorAll(".mv .ic").length;
+  console.log("depois de recarregar o PGN cru — selos:", selosAntes,
+    "| precisão:", window.document.querySelectorAll(".accbox .v").length);
+
+  // reabre a análise salva: nada de motor
+  const goAntes = buscasNoMotor;
+  window.document.querySelector("#savedList [data-open]").click();
+  await wait(300);
+  const selosDepois = window.document.querySelectorAll(".mv .ic").length;
+  console.log("reaberta — selos:", selosDepois, "| precisão:",
+    [...window.document.querySelectorAll(".accbox .v")].map((e) => e.textContent).join(" / "),
+    "| buscas no motor:", buscasNoMotor - goAntes);
+  console.log("restaurou tudo sem o motor:",
+    selosAntes === 0 && selosDepois > 0 && buscasNoMotor - goAntes === 0);
+  console.log("aba ativa após reabrir:",
+    (window.document.querySelector(".tabs button.on") || {}).textContent,
+    "| gráfico presente:", !!$("graph"), "| botões de exportar visíveis:", $("exportRow").style.display === "");
+  console.log("sem duplicar ao reabrir:",
+    JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length === 1);
+
+  /* ================= exportar PGN comentado ================= */
+  console.log("\n== PGN comentado ==");
+  const BlobReal = window.Blob;
+  let capturado = null;
+  window.Blob = function (partes, opts) { capturado = { partes, opts }; return new BlobReal(partes, opts); };
+  try { window.URL.createObjectURL = () => "blob:teste"; window.URL.revokeObjectURL = () => {}; } catch (e) {}
+  $("btnExportPgn").click(); await wait(100);
+  const pgnAnot = capturado ? capturado.partes.join("") : "";
+  console.log("tipo do arquivo:", capturado && capturado.opts && capturado.opts.type);
+  console.log("tem [Annotator \"Plyscope\"]:", /\[Annotator "Plyscope"\]/.test(pgnAnot));
+  console.log("tem cabeçalhos originais:", /\[White "/.test(pgnAnot) && /\[Black "/.test(pgnAnot));
+  const comentarios = pgnAnot.match(/\{[^}]*\}/g) || [];
+  const comEval = comentarios.filter((c) => /\[%eval (-?\d+\.\d\d|#-?\d+)\]/.test(c));
+  console.log("comentários:", comentarios.length, "| com [%eval] inteiro numa linha:", comEval.length,
+    "| lances:", window.document.querySelectorAll(".mv").length,
+    "| sem eval (mate no tabuleiro):", comentarios.length - comEval.length);
+  const nags = (pgnAnot.match(/\$\d+/g) || []);
+  console.log("NAGs usados:", [...new Set(nags)].sort().join(" ") || "(nenhum)", "| total:", nags.length);
+  console.log("comentário de erro tem a perda:",
+    /\{ \[%eval [^\]]+\] (Impreciso|Erro|Capivarada)[^}]*perdeu \d+% de chance de vitória/.test(pgnAnot));
+  console.log("linhas com mais de 80 colunas:", pgnAnot.split("\n").filter((l) => l.length > 80).length);
+  // o PGN gerado tem que voltar a ser lido por um parser de verdade
+  try {
+    const c2 = new (require("chess.js").Chess)();
+    c2.loadPgn(pgnAnot, { strict: false });
+    console.log("relido por chess.js:", c2.history().length, "lances");
+  } catch (e) { console.log("relido por chess.js: FALHOU —", e.message); }
+  console.log("--- primeiras 10 linhas ---");
+  console.log(pgnAnot.split("\n").slice(0, 10).join("\n"));
+  console.log("--- início dos lances ---");
+  console.log((pgnAnot.split("\n\n")[1] || "").split("\n").slice(0, 6).join("\n"));
+  console.log("---");
+  window.Blob = BlobReal;
+
+  /* ================= exportar imagem ================= */
+  console.log("\n== imagem do relatório ==");
+  // 1) do jeito que o jsdom é de fábrica: sem getContext, o app só avisa
+  $("btnExportPng").click(); await wait(100);
+  console.log("sem canvas o app não quebra — aviso:", $("toast").textContent);
+
+  // 2) com um contexto 2D de mentira, para rodar o desenho de verdade
+  const desenho = { fill: 0, stroke: 0, arc: 0, fillRect: 0, textos: [] };
+  const nada = () => {};
+  const ctx2d = {
+    save: nada, restore: nada, scale: nada, translate: nada, clip: nada, rect: nada,
+    beginPath: nada, closePath: nada, moveTo: nada, lineTo: nada, arcTo: nada,
+    clearRect: nada, strokeRect: nada, strokeText: nada,
+    arc: () => desenho.arc++, fill: () => desenho.fill++, stroke: () => desenho.stroke++,
+    fillRect: () => desenho.fillRect++,
+    fillText: (t) => desenho.textos.push(String(t)),
+    measureText: (t) => ({ width: String(t).length * 7 }),
+  };
+  let png = null;
+  window.HTMLCanvasElement.prototype.getContext = function () { return ctx2d; };
+  window.HTMLCanvasElement.prototype.toBlob = function (cb, tipo) {
+    png = { w: this.width, h: this.height, tipo };
+    cb(new window.Blob(["png"], { type: tipo || "image/png" }));
+  };
+  $("btnExportPng").click(); await wait(100);
+  console.log("PNG gerado:", !!png, "| dimensões:", png && png.w + "x" + png.h,
+    "(devicePixelRatio mínimo 2) | tipo:", png && png.tipo, "|", $("toast").textContent);
+  console.log("desenhou — fundo opaco:", desenho.fillRect > 0, "| formas preenchidas:", desenho.fill,
+    "| círculos (selos + erros no gráfico):", desenho.arc, "| textos:", desenho.textos.length);
+  const txt = desenho.textos.join(" | ");
+  console.log("mostra nome do app:", /Plyscope/.test(txt),
+    "| os dois jogadores:", txt.indexOf("Paul Morphy") >= 0 && /Duque Karl/.test(txt),
+    "| precisão:", /precisão \(%\)/.test(txt) && txt.indexOf("96.2") >= 0 && txt.indexOf("83.0") >= 0,
+    "| tipos de lance:", /Brilhante/.test(txt) && /Impreciso/.test(txt));
+
+  /* ================= armazenamento com problema ================= */
+  console.log("\n== armazenamento recusando gravação ==");
+  const proto = window.Storage.prototype;
+  const setReal = proto.setItem, remReal = proto.removeItem;
+  const erroCota = () => { const e = new Error("cheio"); e.name = "QuotaExceededError"; throw e; };
+  proto.setItem = erroCota; proto.removeItem = erroCota;
+  let quebrou = false;
+  try { window.document.querySelector("#savedList [data-del]").click(); } catch (e) { quebrou = true; }
+  await wait(50);
+  proto.setItem = setReal; proto.removeItem = remReal;
+  console.log("QuotaExceededError derrubou o app:", quebrou,
+    "| registro intacto:", JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length === 1,
+    "| aviso:", $("toast").textContent);
+  console.log("navegação continua funcionando:", ($("btnNext").click(), true),
+    "| lances na lista:", window.document.querySelectorAll(".mv").length);
+
+  /* ================= apagar ================= */
+  window.document.querySelector("#savedList [data-del]").click(); await wait(50);
+  console.log("\n== apagar ==");
+  console.log("registros após apagar:", JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length,
+    "| itens na lista:", window.document.querySelectorAll("#savedList .saved").length,
+    "| aviso:", $("savedHint").textContent.slice(0, 30) + "…");
 
   $("btnCopyFen").click(); $("btnCopyPgn").click(); await wait(50);
   console.log("copiar sem clipboard:", $("toast").textContent);

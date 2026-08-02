@@ -320,6 +320,14 @@ h3.sub{
 .gamelist button:hover{color:var(--tx);padding-left:6px}
 .gamelist button b{color:var(--tx);font-weight:600}
 .gamelist .meta{color:var(--tx-3);font-size:11.5px;margin-top:3px;font-family:var(--mono);letter-spacing:-.01em}
+/* linha de análise salva: abrir (esquerda) + apagar (direita) */
+.gamelist .saved{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--hair)}
+.gamelist .saved>button:first-child{flex:1;min-width:0;border-bottom:0}
+.gamelist .saved .del{
+  flex:0 0 auto;width:auto;display:inline-flex;align-items:center;
+  padding:0 9px;border-bottom:0;color:var(--tx-3);font-size:12px;
+}
+.gamelist .saved .del:hover{color:var(--danger);padding-left:9px}
 
 /* =========================================================
    7. RELATÓRIO
@@ -625,6 +633,10 @@ h3.sub{
               <span>arraste um arquivo .pgn aqui</span>
             </div>
 
+            <h3 class="sub">Análises salvas</h3>
+            <div class="hint" id="savedHint">As análises ficam guardadas neste navegador.</div>
+            <div class="gamelist" id="savedList"></div>
+
             <h3 class="sub">Buscar partidas online</h3>
             <div class="row">
               <select id="site" style="width:132px;flex:0 0 132px">
@@ -647,6 +659,15 @@ h3.sub{
               <strong>Relatório da partida</strong>
               Carregue um PGN e clique em <b>Analisar partida</b> para ver precisão, classificação de cada lance e os momentos decisivos.
             </div>
+          </div>
+          <div class="pad" id="exportRow" style="display:none;padding-top:0">
+            <div class="row">
+              <button class="btn grow" id="btnExportPgn" title="Baixar a partida com avaliação e classificação em comentários">PGN comentado</button>
+              <button class="btn grow" id="btnExportPng" title="Baixar o relatório como imagem PNG">Imagem do relatório</button>
+            </div>
+            <p class="hint" style="margin-top:9px">
+              O <b>.pgn</b> abre no Lichess, Chess.com e SCID com os selos e as avaliações. O <b>.png</b> é o resumo para compartilhar.
+            </p>
           </div>
         </div>
 
