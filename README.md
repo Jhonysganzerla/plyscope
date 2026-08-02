@@ -69,7 +69,7 @@ Antes do veredito, todo candidato a sacrifício é **reanalisado com mais profun
 - PGN com várias partidas vira uma lista para você escolher.
 
 **Análise**
-- Stockfish 17.1 lite single-thread em WebAssembly, rodando local.
+- Stockfish 17.1 lite em WebAssembly, rodando local — **multi-thread quando a página permite**, single-thread quando não (o app decide sozinho e diz na aba Motor).
 - Três profundidades: rápida (12), padrão (16), profunda (20).
 - **Segunda passada** automática: lances suspeitos e sacrifícios voltam para o motor com 6 níveis a mais.
 
@@ -100,19 +100,56 @@ Dê **dois cliques em `Abrir Plyscope.bat`**.
 
 Ele liga um servidor local minúsculo (PowerShell, já vem no Windows) e abre `http://localhost:8123/index.html` no seu navegador. Deixe a janela preta aberta enquanto usa; feche para encerrar.
 
+### macOS
+
+Dê **dois cliques em `Abrir Plyscope.command`** — o Finder abre no Terminal, o servidor sobe e o navegador abre sozinho.
+
+Pelo terminal dá no mesmo:
+
+```bash
+./plyscope.sh
+```
+
+Na primeira vez o macOS pode reclamar que o arquivo veio da internet: clique com o botão direito → *Abrir* → *Abrir*. Se o `.command` não tiver permissão de execução, `chmod +x "Abrir Plyscope.command" plyscope.sh` resolve.
+
+### Linux
+
+```bash
+./plyscope.sh
+```
+
+O script usa o **Python 3** (que praticamente toda distro já tem) e cai para o **Node.js** se não achar Python. Aceita porta fixa e modo silencioso: `./plyscope.sh 8200 --sem-navegador`.
+
 ### Na web
 
-O projeto é estático: `index.html` + `engine/`. Sobe em Vercel, GitHub Pages, Cloudflare Pages ou Netlify sem build nenhum — o passo a passo está em [`docs/PUBLICAR.md`](docs/PUBLICAR.md). O `vercel.json` já serve o `.wasm` com o tipo certo e cache de um ano.
+O projeto é estático: `index.html` + `engine/`. Sobe em Vercel, GitHub Pages, Cloudflare Pages ou Netlify sem build nenhum — o passo a passo está em [`docs/PUBLICAR.md`](docs/PUBLICAR.md). O `vercel.json` já serve o `.wasm` com o tipo certo, cache de um ano e os cabeçalhos do modo multi-thread.
 
-### Qualquer outro sistema
+### Qualquer outro servidor estático
 
-Sirva a pasta com qualquer servidor estático:
+Serve, mas em **1 thread**: os servidores genéricos não mandam os cabeçalhos `Cross-Origin-Opener-Policy` e `Cross-Origin-Embedder-Policy` de que o motor multi-thread precisa.
 
 ```bash
 python3 -m http.server 8123      # depois abra http://localhost:8123
 # ou
 npx serve .
 ```
+
+### Um thread ou vários
+
+O Plyscope traz dois builds do mesmo Stockfish 17.1 lite e **escolhe sozinho** na hora de abrir:
+
+| Página | Motor | Threads |
+|---|---|---|
+| servida com `COOP: same-origin` + `COEP: require-corp` | `engine/stockfish-lite.js` | `hardwareConcurrency − 1`, no máximo 8 |
+| qualquer outra | `engine/stockfish-lite-single.js` | 1 |
+
+Esses dois cabeçalhos deixam a página *cross-origin isolated*, que é a condição do navegador para liberar o `SharedArrayBuffer` — e sem `SharedArrayBuffer` não existe WebAssembly com threads. Os atalhos do Windows, do macOS e do Linux já os mandam, e a Vercel também. A aba **Motor** mostra em que modo você está.
+
+Se o multi-thread não subir (navegador antigo, memória curta), o app volta sozinho para o single-thread, sem aviso e sem quebrar nada.
+
+**E a busca no Chess.com e no Lichess?** Continua funcionando com os cabeçalhos ligados. O `COEP: require-corp` só barra requisições em modo `no-cors`; o app busca as partidas com `fetch(..., { mode: "cors" })`, e as duas APIs respondem com `Access-Control-Allow-Origin`, o que basta. Foi por isso que o `require-corp` foi preferido ao `COEP: credentialless`: `credentialless` resolveria o mesmo problema, mas [o Safari não o implementa](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy) — quem usa Safari ficaria sem multi-thread à toa.
+
+**Por que os 7 MB do motor multi-thread estão no repositório.** Foi avaliado baixar sob demanda com um script, e não compensa: não há passo de build aqui (a Vercel publica o repositório como está, e o `.bat` do Windows não roda instalador nenhum), então um download sob demanda significaria ou um passo manual antes do primeiro uso, ou o site publicado sem o arquivo — nos dois casos o multi-thread simplesmente não aconteceria. O repositório já carregava 7 MB do build de 1 thread; passar para 14 MB de binário que quase nunca muda é barato perto de trocar "dois cliques e funciona" por "rode o script antes". Os dois `.wasm` estão marcados como binários no `.gitattributes`, então o Git não tenta versionar diferenças deles.
 
 ### Por que não dá para abrir o `index.html` direto
 
@@ -131,20 +168,26 @@ Um servidor estático local resolve os dois. Ele serve os arquivos por `http://l
 plyscope/
 ├─ index.html                     o app inteiro: interface, tabuleiro, chess.js e a análise
 ├─ Abrir Plyscope.bat             atalho do Windows
+├─ Abrir Plyscope.command         atalho do macOS (duplo clique no Finder)
+├─ plyscope.sh                    atalho do macOS e do Linux, pelo terminal
 ├─ servidor.ps1                   servidor estático em PowerShell, porta 8123
 ├─ engine/
-│  ├─ stockfish-lite-single.js    Stockfish 17.1 lite, single-thread (nmrugg/stockfish.js)
-│  └─ stockfish-lite-single.wasm  ~7 MB
+│  ├─ stockfish-lite-single.js    Stockfish 17.1 lite, 1 thread (nmrugg/stockfish.js)
+│  ├─ stockfish-lite-single.wasm  ~7 MB
+│  ├─ stockfish-lite.js           o mesmo build, multi-thread
+│  └─ stockfish-lite.wasm         ~7 MB
 ├─ src/                           fontes — o index.html é gerado a partir daqui
 │  ├─ shell.html                  HTML + CSS (tokens, layout)
 │  ├─ app.js                      análise, classificação, tabuleiro, som
 │  ├─ build.py                    junta tudo num index.html só
 │  ├─ vendor/chess.esm.js         chess.js (regras, PGN, FEN)
 │  └─ assets/pieces.svg           sprite das peças
-├─ tools/                         só para desenvolver — nada disso é preciso para usar
-│  ├─ test.js                     teste ponta a ponta em jsdom, com Stockfish de verdade
-│  ├─ calibrar.js                 mede o detector de Brilhante contra o benchmark
-│  └─ tune.js                     busca em grade dos limiares
+├─ tools/
+│  ├─ servidor.py                 servidor estático em Python 3 (macOS/Linux)
+│  ├─ servidor.js                 o mesmo em Node.js, para quem não tem Python 3
+│  ├─ test.js                     (dev) teste ponta a ponta em jsdom, com Stockfish de verdade
+│  ├─ calibrar.js                 (dev) mede o detector de Brilhante contra o benchmark
+│  └─ tune.js                     (dev) busca em grade dos limiares
 ├─ docs/
 │  ├─ MANUAL.md                   manual do usuário final
 │  ├─ BENCHMARK.md                como a calibração foi feita e medida

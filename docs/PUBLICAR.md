@@ -34,7 +34,7 @@ A partir daí, todo `git push` na `main` republica sozinho.
 
 ### O que já está configurado para a Vercel
 
-- **`vercel.json`** — `.wasm` servido como `application/wasm` e `engine/` com cache imutável de um ano, para o motor de 7 MB baixar uma vez só por visitante.
+- **`vercel.json`** — `.wasm` servido como `application/wasm`, `engine/` com cache imutável de um ano (o motor de 7 MB baixa uma vez só por visitante) e `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp` em tudo, que é o que libera o motor multi-thread. Esses dois cabeçalhos não atrapalham a busca de partidas: o app consulta o Chess.com e o Lichess em modo `cors`, e o COEP só barra requisições `no-cors`.
 - **`.vercelignore`** — sobem só o `index.html` e a pasta `engine/`. As fontes, ferramentas, documentação e a marca continuam no GitHub, mas fora do deploy.
 - **`.github/workflows/build.yml`** — a cada push, o CI reconstrói o `index.html` a partir de `src/` e falha se o arquivo commitado estiver desatualizado. Assim o site publicado nunca fica diferente do código.
 
@@ -50,10 +50,19 @@ Como o projeto é 100% estático, qualquer hospedagem serve:
 
 | Onde | Como | Observação |
 |---|---|---|
-| **GitHub Pages** | Settings → Pages → branch `main` | Já está no GitHub; serve `.wasm` corretamente. Sem cabeçalhos personalizados. |
-| **Cloudflare Pages** | Conecta o repo | Banda ilimitada — a melhor opção se o `.wasm` de 7 MB virar problema. |
-| **Netlify** | Arrastar a pasta ou conectar o repo | Aceita deploy por arrastar, sem precisar do Git. |
+| **GitHub Pages** | Settings → Pages → branch `main` | Já está no GitHub; serve `.wasm` corretamente. Não deixa configurar cabeçalho: o motor roda em 1 thread. |
+| **Cloudflare Pages** | Conecta o repo | Banda ilimitada — a melhor opção se o `.wasm` de 7 MB virar problema. Aceita um arquivo `_headers` com COOP/COEP para o multi-thread. |
+| **Netlify** | Arrastar a pasta ou conectar o repo | Aceita deploy por arrastar, sem precisar do Git. Também usa `_headers`. |
+
+Para o multi-thread funcionar fora da Vercel, o servidor precisa mandar em todas as respostas:
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+Sem eles nada quebra — o app apenas cai para o motor de 1 thread e avisa disso na aba Motor.
 
 ## Rodando local, sem nada disso
 
-`Abrir Plyscope.bat` (Windows) ou `python3 -m http.server 8123` na pasta.
+`Abrir Plyscope.bat` (Windows), `Abrir Plyscope.command` (macOS) ou `./plyscope.sh` (macOS e Linux). Na mão, `python3 -m http.server 8123` também serve — só que sem os cabeçalhos COOP/COEP, ou seja, com o motor em 1 thread.
