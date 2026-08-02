@@ -14,6 +14,10 @@
 </p>
 
 <p align="center">
+  <a href="https://plyscope.vercel.app/"><b>▶ Abrir o Plyscope</b></a> — abre direto no navegador, sem instalar nada
+</p>
+
+<p align="center">
   <a href="#como-rodar"><b>Como rodar</b></a> ·
   <a href="#o-detector-de-brilhante"><b>Benchmark</b></a> ·
   <a href="#como-a-classificação-funciona"><b>Como classifica</b></a> ·
@@ -264,6 +268,32 @@ Este app é uma casca em volta de trabalho de outras pessoas:
 - **Chess.com** — pelo Game Review, que é o alvo de comparação, e pelo Brilliant Move Benchmark ter um gabarito para medir.
 - **Poppins** (SIL OFL) — o logotipo foi desenhado a partir dela e convertido em curvas.
 
+## ☕ Apoie o projeto
+
+O Plyscope é **gratuito, open source e roda no seu navegador** — sem conta, sem servidor, sem mensalidade, sem rastreamento. Se ele te ajudou a entender uma partida sua, considera me pagar um café. Ajuda a manter o projeto vivo.
+
+### PIX (Brasil)
+
+<img src="docs/img/pix-qr.png" alt="QR Code PIX" width="220">
+
+**Chave PIX (aleatória):**
+
+```
+ac344236-c335-4f89-aee2-e671101d4619
+```
+
+**Ou use o copia-e-cola:**
+
+```
+00020101021126580014br.gov.bcb.pix0136ac344236-c335-4f89-aee2-e671101d46195204000053039865802BR5915Jhony Sganzerla6008BRASILIA62070503***6304EEE4
+```
+
+Beneficiário: **Jhony Sganzerla** · Valor: você escolhe 💛
+
+### GitHub Sponsors
+
+Prefere apoiar de forma recorrente? Use o botão **Sponsor** no topo do repositório ou acesse [github.com/sponsors/Jhonysganzerla](https://github.com/sponsors/Jhonysganzerla).
+
 ## Licença
 
 **GPLv3.** Não por preferência ideológica: o **Stockfish vai dentro deste repositório**, e o Stockfish é GPLv3. Distribuir o motor junto com o app torna o conjunto uma obra derivada — a GPLv3 é a única licença possível para essa distribuição, e é a certa.
@@ -272,30 +302,6 @@ Na prática: use, estude, modifique e redistribua à vontade; se distribuir uma 
 
 O chess.js é BSD (compatível) e as peças são CC BY-SA 3.0, que exige atribuição — as duas coisas estão preservadas nos créditos acima. A base de aberturas é CC0 (domínio público), então não impõe condição nenhuma; ainda assim está creditada.
 
-## Roadmap
-
-Curto e honesto. Sem datas.
-
-Feito desde a primeira versão pública:
-
-- [x] **Benchmark de brilhantes: 43 → 87 → 93 de 100**, com os mesmos 4 falsos positivos em 416 lances comuns.
-- [x] **Nome da abertura** (ECO) no relatório e na lista de partidas, com base CC0 embutida e detecção por posição — pega transposição.
-- [x] **Análises salvas** no navegador: reabrir é instantâneo e não toca no motor.
-- [x] **Exportar** PGN comentado (com NAG e `[%eval]`, relido por Lichess/SCID) e imagem PNG do relatório.
-- [x] **Launchers para macOS e Linux** (`plyscope.sh`, `Abrir Plyscope.command`), com os mesmos cabeçalhos do servidor do Windows.
-- [x] **Stockfish multi-thread** automático quando a página está cross-origin isolated, com queda para 1 thread e aviso do modo na aba Motor.
-- [x] **Interface em inglês**, com troca de idioma na própria interface — sem recarregar a página e sem perder a análise aberta.
-
-O que ainda não está fechado:
-
-- [ ] **Os 7 casos que faltam no benchmark.** Três são limite de profundidade e não de detecção — o `calibrar.js` mede em profundidade fixa e não simula a segunda passada do app. Vale medir do jeito certo antes de mexer na regra.
-- [ ] **Análise da abertura contra a teoria**: dizer *onde* saiu do livro e qual era o lance de livro.
-- [ ] **Exportar a partida anotada como GIF ou vídeo curto**, para compartilhar sem pedir para a pessoa clicar.
-- [ ] **Modo treino:** esconder o lance jogado e pedir para você achar o melhor, usando as próprias partidas.
-
-**Fora de escopo, de propósito:** conta de usuário, backend, ranking, banco de partidas na nuvem, análise "com IA" que não seja o motor. Se um recurso exige servidor, ele não entra.
-
----
 
 <p align="center">
   <sub>Feito para quem quer entender a própria partida sem pedir licença — nem pagar por isso.</sub>

@@ -23,3 +23,5 @@ desktop.ini
 # python
 __pycache__/
 *.pyc
+
+.vercel

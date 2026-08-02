@@ -14,6 +14,10 @@
 </p>
 
 <p align="center">
+  <a href="https://plyscope.vercel.app/"><b>▶ Open Plyscope</b></a> — runs in your browser, nothing to install
+</p>
+
+<p align="center">
   <a href="#how-to-run"><b>How to run</b></a> ·
   <a href="#the-brilliant-detector"><b>Benchmark</b></a> ·
   <a href="#how-the-classification-works"><b>How it classifies</b></a> ·
@@ -274,6 +278,32 @@ This app is a shell around other people's work:
 - **Chess.com** — for the Game Review, which is the comparison target, and for the Brilliant Move Benchmark having an answer key to measure against.
 - **Poppins** (SIL OFL) — the logotype was drawn from it and converted to curves.
 
+## ☕ Support the project
+
+Plyscope is **free, open source and runs in your browser** — no account, no server, no subscription, no tracking. If it helped you understand one of your games, consider buying me a coffee. It keeps the project alive.
+
+### PIX (Brazil)
+
+<img src="docs/img/pix-qr.png" alt="PIX QR Code" width="220">
+
+**PIX key (random):**
+
+```
+ac344236-c335-4f89-aee2-e671101d4619
+```
+
+**Or the copy-and-paste code:**
+
+```
+00020101021126580014br.gov.bcb.pix0136ac344236-c335-4f89-aee2-e671101d46195204000053039865802BR5915Jhony Sganzerla6008BRASILIA62070503***6304EEE4
+```
+
+Recipient: **Jhony Sganzerla** · Amount: your call 💛
+
+### GitHub Sponsors
+
+Prefer something recurring? Use the **Sponsor** button at the top of the repository, or go to [github.com/sponsors/Jhonysganzerla](https://github.com/sponsors/Jhonysganzerla).
+
 ## License
 
 **GPLv3.** Not out of ideological preference: **Stockfish ships inside this repository**, and Stockfish is GPLv3. Distributing the engine together with the app makes the whole thing a derivative work — GPLv3 is the only possible license for that distribution, and it is the right one.
@@ -282,30 +312,6 @@ In practice: use, study, modify and redistribute freely; if you distribute a mod
 
 chess.js is BSD (compatible) and the pieces are CC BY-SA 3.0, which requires attribution — both are preserved in the credits above. The openings base is CC0 (public domain), so it imposes no condition at all; it is credited anyway.
 
-## Roadmap
-
-Short and honest. No dates.
-
-Done since the first public version:
-
-- [x] **Brilliant benchmark: 43 → 87 → 93 out of 100**, with the same 4 false positives across 416 ordinary moves.
-- [x] **Opening name** (ECO) in the report and in the game list, with an embedded CC0 base and position-based detection — it catches transpositions.
-- [x] **Saved analyses** in the browser: reopening is instant and never touches the engine.
-- [x] **Export** an annotated PGN (with NAGs and `[%eval]`, read back by Lichess/SCID) and a PNG image of the report.
-- [x] **macOS and Linux launchers** (`plyscope.sh`, `Abrir Plyscope.command`), with the same headers as the Windows server.
-- [x] **Multi-threaded Stockfish** automatically when the page is cross-origin isolated, falling back to 1 thread and reporting the mode in the Engine tab.
-- [x] **English interface**, with language switching inside the app — no page reload and no losing the open analysis.
-
-Still open:
-
-- [ ] **The 7 remaining benchmark cases.** Three are a depth limit rather than a detection failure — `calibrar.js` measures at a fixed depth and doesn't simulate the app's second pass. Worth measuring properly before touching the rule.
-- [ ] **Opening analysis against theory**: say *where* the game left the book and what the book move was.
-- [ ] **Export the annotated game as a GIF or short video**, to share without asking people to click.
-- [ ] **Training mode:** hide the move played and ask you to find the best one, using your own games.
-
-**Deliberately out of scope:** user accounts, a backend, leaderboards, a cloud game database, "AI" analysis that isn't the engine. If a feature needs a server, it doesn't get in.
-
----
 
 <p align="center">
   <sub>Made for people who want to understand their own games without asking permission — or paying for it.</sub>
