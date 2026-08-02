@@ -47,9 +47,9 @@ So as not to grade its own homework, the detector was calibrated against the **B
 | Tool | Brilliants found |
 |---|---|
 | Chess.com *(answer key)* | 100 / 100 |
+| **Plyscope** | **93 / 100** |
 | Chessigma | 93 / 100 |
 | Chessiro | 90 / 100 |
-| **Plyscope** | **93 / 100** |
 | WintrChess | 45 / 100 |
 | Chessitup | 41 / 100 |
 | Chesskit | 23 / 100 |

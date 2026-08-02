@@ -45,9 +45,9 @@ Para não julgar o próprio trabalho no olho, o detector foi calibrado contra o 
 | Ferramenta | Brilhantes encontrados |
 |---|---|
 | Chess.com *(gabarito)* | 100 / 100 |
+| **Plyscope** | **93 / 100** |
 | Chessigma | 93 / 100 |
 | Chessiro | 90 / 100 |
-| **Plyscope** | **93 / 100** |
 | WintrChess | 45 / 100 |
 | Chessitup | 41 / 100 |
 | Chesskit | 23 / 100 |
