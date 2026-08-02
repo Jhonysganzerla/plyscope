@@ -36,6 +36,7 @@ const S = {
   explore: null,    // {chess, sanLine[]}
   sel: null,        // casa selecionada
   deep: false,
+  abertura: null,   // {eco, nome, ply} — abertura identificada na base ECO
 };
 
 /* ============================================================
@@ -444,6 +445,58 @@ function gameAccuracy() {
 }
 
 /* ============================================================
+   Abertura — base ECO embutida (window.Aberturas, ver src/data/openings.js)
+   ============================================================ */
+const ABERTURA_MAX_PLY = 30;   // além disso já não é teoria de abertura
+
+/* Percorre as posições da partida e fica com a correspondência MAIS PROFUNDA:
+   a abertura é a última entrada que bate, não a primeira.
+   A base é indexada por POSIÇÃO (peças + lado a jogar + roques), não pela ordem
+   dos lances, então transposição não atrapalha: 1.d4 Nf6 2.c4 e6 3.Nc3 Bb4 e
+   1.c4 e6 2.Nc3 Bb4 3.d4 Nf6 chegam à mesma posição e à mesma Nimzo-Índia.
+   Pelo mesmo motivo, uma partida que sai do livro e volta a ele mais adiante
+   ainda é reconhecida.
+   Os cabeçalhos ECO/Opening do PGN entram só como reserva: a base local é
+   consistente entre partidas de qualquer site, está em português e sabe dizer
+   até que lance a teoria foi seguida — o cabeçalho não informa nada disso. */
+function aberturaDeFens(fens, headers) {
+  const Ab = window.Aberturas;
+  if (Ab && fens && fens.length > 1) {
+    const r = Ab.detectar(fens, ABERTURA_MAX_PLY);
+    if (r) return r;
+  }
+  const h = headers || {};
+  const eco = h.ECO && h.ECO !== "?" ? h.ECO : "";
+  const nome = h.Opening && h.Opening !== "?" ? h.Opening : "";
+  return eco || nome ? { eco, nome, ply: 0 } : null;
+}
+
+/* Mesma coisa a partir de um PGN solto (lista de partidas importadas). */
+function aberturaDePgn(pgn, headers) {
+  try {
+    const c = new Chess();
+    c.loadPgn(String(pgn).trim(), { strict: false });
+    const hist = c.history();
+    const r = new Chess();
+    if (headers && headers.FEN) r.load(headers.FEN);
+    const fens = [r.fen()];
+    for (let i = 0; i < hist.length && i < ABERTURA_MAX_PLY; i++) { r.move(hist[i]); fens.push(r.fen()); }
+    return aberturaDeFens(fens, headers);
+  } catch (e) { return aberturaDeFens(null, headers); }
+}
+
+function aberturaTexto(a) {
+  return a ? [a.eco, a.nome].filter(Boolean).join(" · ") : "";
+}
+
+function aberturaHtml(a) {
+  if (!a || (!a.eco && !a.nome)) return "";
+  const ate = a.ply ? `<span class="hint">teoria até o lance ${Math.ceil(a.ply / 2)}</span>` : "";
+  return `<div class="opening">${a.eco ? `<span class="eco">${esc(a.eco)}</span>` : ""}` +
+    `<span class="nm">${esc(a.nome || "abertura fora da base")}</span>${ate}</div>`;
+}
+
+/* ============================================================
    Carregar PGN
    ============================================================ */
 function loadPgn(pgn) {
@@ -476,10 +529,12 @@ function loadPgn(pgn) {
   }
   S.ply = 0;
   S.chess = rep;
+  S.abertura = aberturaDeFens(S.fens, S.headers);
   if (typeof pararPlay === "function") pararPlay();
   renderPlayers(); renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
   $("btnAnalyze").disabled = false;
-  $("reportBody").innerHTML = '<div class="empty"><span class="rule"></span><strong>Partida carregada</strong>' +
+  $("reportBody").innerHTML = aberturaHtml(S.abertura) +
+    '<div class="empty"><span class="rule"></span><strong>Partida carregada</strong>' +
     'Clique em <b>Analisar partida</b> para gerar precisão, classificação dos lances e momentos decisivos.</div>';
   showTab("moves");
   return true;
@@ -917,7 +972,7 @@ function renderReport() {
         <span class="hint">perdeu ${k.pm.loss.toFixed(0)}% de chance de vitória</span></button>`;
     }
   }
-  $("reportBody").innerHTML = `
+  $("reportBody").innerHTML = aberturaHtml(S.abertura) + `
     <div class="accbox">
       <div class="side"><div class="k">${esc(wName)}</div>
         <div class="v">${S.accuracy.w != null ? S.accuracy.w.toFixed(1) : "–"}</div><div class="u">precisão (%)</div></div>
@@ -1207,10 +1262,14 @@ function pgnInfo(pgn) {
 }
 function showGameList(items) {
   const box = $("gameList");
-  box.innerHTML = items.map((g, i) => `<button data-i="${i}">
+  box.innerHTML = items.map((g, i) => {
+    const ab = aberturaTexto(aberturaDePgn(g.pgn, g));
+    return `<button data-i="${i}">
       <div><b>${esc(g.White || "?")}</b> ${g.WhiteElo ? "(" + esc(g.WhiteElo) + ")" : ""} vs <b>${esc(g.Black || "?")}</b> ${g.BlackElo ? "(" + esc(g.BlackElo) + ")" : ""}</div>
       <div class="meta">${esc(g.Result || "")} · ${esc(g.Date || g.UTCDate || "")} · ${esc(g.TimeControl || "")} ${esc(g.Event || "")}</div>
-    </button>`).join("");
+      ${ab ? `<div class="meta">${esc(ab)}</div>` : ""}
+    </button>`;
+  }).join("");
   box.querySelectorAll("button").forEach((b) => (b.onclick = () => {
     const g = items[+b.dataset.i];
     $("pgnBox").value = g.pgn;

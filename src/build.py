@@ -5,7 +5,8 @@ sprite de peças e toda a lógica de análise.
 
     python src/build.py        (ou: cd src && python build.py)
 
-Entradas:  src/shell.html, src/app.js, src/vendor/chess.esm.js, src/assets/pieces.svg
+Entradas:  src/shell.html, src/app.js, src/vendor/chess.esm.js, src/assets/pieces.svg,
+           src/data/openings.js
 Saída:     index.html (na raiz do projeto)
 """
 import re
@@ -35,8 +36,12 @@ if len(groups) != 12:
 
 app = (SRC / "app.js").read_text(encoding="utf-8")
 
+# --- base de aberturas ECO (gerada por tools/gerar-aberturas.js) ---
+openings = (SRC / "data" / "openings.js").read_text(encoding="utf-8")
+
 out = shell.replace("<!--__PIECES__-->", "\n".join(groups))
 out = out.replace("/*__CHESSJS__*/", cj)
+out = out.replace("/*__OPENINGS__*/", openings)
 out = out.replace("/*__APP__*/", app)
 DEST.write_text(out, encoding="utf-8")
 print("ok:", DEST, "%d KB" % (len(out) // 1024))
