@@ -30,11 +30,11 @@
 
 ## What it is
 
-Plyscope takes the PGN of one of your games, runs **Stockfish 17.1** inside your own browser, evaluates **every** position and gives back what chess.com's Game Review gives back: accuracy for both players, a badge for every move (Brilliant, Great, Best, Excellent, Good, Forced, Inaccuracy, Mistake, Capivarada), an advantage graph, the key moments and an arrow pointing at the move you should have played.
+Plyscope takes the PGN of one of your games, runs **Stockfish 17.1** inside your own browser, evaluates **every** position and gives back what chess.com's Game Review gives back: accuracy for both players, a badge for every move (Brilliant, Great, Best, Excellent, Good, Forced, Inaccuracy, Mistake, Blunder), an advantage graph, the key moments and an arrow pointing at the move you should have played.
 
 The difference is where that happens: **on your machine**. No position, username or evaluation is ever sent anywhere.
 
-> **Capivarada?** It's the badge for the worst kind of move — a *blunder*. The word is a Brazilian joke the project kept in both languages; in English the tooltip spells out what it means.
+> **Capivarada?** That's the Portuguese name of the badge for the worst kind of move — a Brazilian joke of the project's own. In English the same badge simply reads **Blunder**.
 
 ## Why it exists
 
@@ -86,9 +86,10 @@ Before the verdict, every sacrifice candidate is **re-analyzed at greater depth*
 **Report**
 - Accuracy for both players, using Lichess's published formulas.
 - Counts per move type and the **key moments** of the game.
-- Clickable advantage graph — click the valley and jump straight to the Capivarada.
+- Clickable advantage graph — click the valley and jump straight to the blunder.
 
 **Board**
+- Opens from your side: if the username you typed in the online search is one of the players in the PGN and played Black, the board comes up already flipped. Flip it by hand and your choice wins.
 - Evaluation bar, best-move arrow and the badge of the move played, right on the square.
 - The engine's three best lines, with every move clickable.
 - **Free exploration:** click the piece, click the destination, the engine evaluates immediately. *Back to the game* undoes it.
@@ -100,7 +101,7 @@ Before the verdict, every sacrifice candidate is **re-analyzed at greater depth*
 - Dark graphite, application layout: the board stays visible at all times, no scrolling.
 - **Bilingual: Brazilian Portuguese and English**, with the `PT`/`EN` buttons at the top. Switching is instant and does not lose the analysis on screen — report, badges, graph and saved analyses are relabelled on the spot, without reloading the page. The initial language comes from the browser (`navigator.language`) and your choice is remembered.
 - Numbers in each language's format (`96,2%` × `96.2%`, `1,2 s` × `1.2s`), dates likewise, and opening names in both languages — chess notation (SAN/FEN/PGN/ECO) is never translated.
-- The **Capivarada** badge stays Capivarada in both languages — in English the tooltip explains it means *blunder*.
+- The worst-move badge reads **Blunder** in English and **Capivarada** — the project's own Brazilian joke — in Portuguese.
 
 <!-- screenshot -->
 
@@ -262,7 +263,7 @@ Plyscope uses **winning chances** (win%), the same idea as Lichess and chess.com
 | **Forced (=)** | It was the only legal move. |
 | **Inaccuracy (?!)** | Gave up 5% to 10% of winning chances. |
 | **Mistake (?)** | Gave up 10% to 20%. |
-| **Capivarada (??)** | Gave up more than 20%. It's a blunder — the name is the project's own joke and it stays in both languages. |
+| **Blunder (??)** | Gave up more than 20%. In Portuguese this badge is called *Capivarada* — the project's own joke. |
 
 **Accuracy** comes from Lichess's published formulas: the winning-chance loss becomes the move's accuracy, and the game's accuracy is the average of the volatility-weighted mean and the harmonic mean. The numbers land close to chess.com's, but not identical — their formula is closed.
 

@@ -195,9 +195,19 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     motorAba:  txt1($("engineLines")).slice(0, 60),
   });
 
+  /* O dicionário inteiro nas duas línguas, para a varredura mais abaixo:
+     só dá para fotografar cada língua enquanto ela está ativa. */
+  const dicDaLinguaAtiva = () => {
+    const d = {};
+    window.PlyI18n.chaves().forEach((k) => { d[k] = window.PlyI18n.t(k); });
+    return d;
+  };
+
   const pt1 = foto();
+  const dicPt = dicDaLinguaAtiva();
   $("btnLangEn").click(); await wait(150);
   const en = foto();
+  const dicEn = dicDaLinguaAtiva();
 
   const par = (rot, a, b) => console.log("  " + (rot + ":").padEnd(15), a, "\n" + " ".repeat(18) + "→", b);
   par("html lang", pt1.lang, en.lang);
@@ -229,9 +239,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     "| momentos decisivos:", pt1.momentos ? mudou(pt1.momentos, en.momentos) : "(esta partida não tem)");
   console.log("  SELOS DA LISTA mudaram:", mudou(pt1.selos.join("|"), en.selos.join("|")));
   console.log("  ANÁLISES SALVAS mudaram:", mudou(pt1.salvasDica, en.salvasDica) && mudou(pt1.salvasItem, en.salvasItem));
-  console.log("  Capivarada nas duas línguas:",
-    /Capivarada/.test(pt1.legenda) && /Capivarada/.test(en.legenda),
-    "| tooltip pt:", JSON.stringify(pt1.capiTip), "| en:", JSON.stringify(en.capiTip));
+  console.log("  selo do pior lance — pt Capivarada / en Blunder:",
+    /Capivarada/.test(pt1.legenda) && /Blunder/.test(en.legenda) && !/Capivarada/.test(en.legenda),
+    "| legenda pt:", JSON.stringify(pt1.capiTip), "| en:", JSON.stringify(en.capiTip));
 
   console.log("  ANÁLISE INTACTA — selos:", pt1.nSelos, "→", en.nSelos,
     "| SAN idêntico:", pt1.san === en.san,
@@ -246,11 +256,30 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const RESTOS = ["precisão", "Precisão", "análise", "Análise", "Partida", "partida", "lance",
                   "Brancas", "Pretas", "Relatório", "Importar", "Nenhuma", "perdeu", "teoria",
                   "Momentos", "Legenda", "Buscar", "Carregar", "Apagar", "Voltar", "Analisar"];
-  const naTela = window.document.querySelector(".app").textContent.replace(/\s+/g, " ");
-  const sobras = RESTOS.filter((w) => naTela.indexOf(w) >= 0);
+  const naTela = () => window.document.querySelector(".app").textContent.replace(/\s+/g, " ");
+  const sobras = RESTOS.filter((w) => naTela().indexOf(w) >= 0);
   console.log("  sobras em português na tela em inglês:", sobras.length ? sobras.join(", ") : "(nenhuma)");
 
+  /* A mesma varredura, agora tirada do dicionário e nos dois sentidos: para
+     cada chave, o texto da língua ERRADA não pode estar escrito na tela.
+     Trechos curtos, com HTML ou iguais nas duas línguas ficam de fora — não
+     distinguem nada (notação, "1 thread", "0,6 s"). */
+  const trechos = (s) => String(s).replace(/<[^>]+>/g, " ").split(/\{\w+\}/)
+    .map((p) => p.trim()).filter((p) => p.length >= 8);
+  const varrer = (errado, certo) => {
+    const tela = naTela();
+    return Object.keys(errado).filter((k) => errado[k] && errado[k] !== certo[k] &&
+      trechos(errado[k]).some((p) => tela.indexOf(p) >= 0))
+      .map((k) => k + " " + JSON.stringify(errado[k].slice(0, 40)));
+  };
+  const restoPt = varrer(dicPt, dicEn);
+  console.log("  varredura pelo dicionário — português na tela em inglês:",
+    restoPt.length ? restoPt.join(" | ") : "(nenhuma)");
+
   $("btnLangPt").click(); await wait(150);
+  const restoEn = varrer(dicEn, dicPt);
+  console.log("  varredura pelo dicionário — inglês na tela em português:",
+    restoEn.length ? restoEn.join(" | ") : "(nenhuma)");
   const pt2 = foto();
   const voltou = JSON.stringify(pt1) === JSON.stringify(pt2);
   console.log("  de volta ao português, tela idêntica à de antes:", voltou);
@@ -278,6 +307,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     "| buscas no motor:", buscasNoMotor - goAntes);
   console.log("restaurou tudo sem o motor:",
     selosAntes === 0 && selosDepois > 0 && buscasNoMotor - goAntes === 0);
+  console.log("análise salva reaberta sem usuário conhecido — brancas embaixo:",
+    $("nmBot").textContent + " embaixo /", $("nmTop").textContent, "em cima");
   console.log("aba ativa após reabrir:",
     (window.document.querySelector(".tabs button.on") || {}).textContent,
     "| gráfico presente:", !!$("graph"), "| botões de exportar visíveis:", $("exportRow").style.display === "");
@@ -323,7 +354,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   $("btnExportPgn").click(); await wait(100);
   const pgnEn = capturado ? capturado.partes.join("") : "";
   console.log("exportado em inglês — comentário de erro:",
-    /\{ \[%eval [^\]]+\] (Inaccuracy|Mistake|Capivarada)[^}]*gave up \d+% winning chances/.test(pgnEn));
+    /\{ \[%eval [^\]]+\] (Inaccuracy|Mistake|Blunder)[^}]*gave up \d+% winning chances/.test(pgnEn));
   console.log("  NAGs idênticos:", (pgnEn.match(/\$\d+/g) || []).join(" ") === nags.join(" "),
     "| lances idênticos:",
     (pgnEn.replace(/\{[^}]*\}/g, "").replace(/\s+/g, " ")) === (pgnAnot.replace(/\{[^}]*\}/g, "").replace(/\s+/g, " ")));
@@ -390,6 +421,52 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("registros após apagar:", JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length,
     "| itens na lista:", window.document.querySelectorAll("#savedList .saved").length,
     "| aviso:", $("savedHint").textContent.slice(0, 30) + "…");
+
+  /* ================= perspectiva do tabuleiro ================= */
+  console.log("\n== perspectiva de quem está estudando ==");
+  const partida = (brancas, pretas) => `[Event "Perspectiva"]
+[White "${brancas}"]
+[Black "${pretas}"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *`;
+  const abrir = async (pgn) => { $("pgnBox").value = pgn; $("btnLoadPgn").click(); await wait(150); };
+  // o tabuleiro girado é o que troca os nomes de lugar e ancora a barra em cima
+  const girado = () => $("evalWhite").style.bottom === "auto";
+  const lados = () => $("nmBot").textContent + " embaixo / " + $("nmTop").textContent + " em cima";
+
+  await abrir(partida("Paul Morphy", "Duque Karl"));
+  console.log("sem usuário guardado — girado:", girado(), "|", lados());
+
+  // é na busca online que a pessoa diz quem é; o nome fica guardado
+  $("userBox").value = "MinhaConta";
+  $("btnFetch").click(); await wait(120);
+  console.log("nome guardado no navegador:",
+    JSON.stringify(window.localStorage.getItem("plyscope.usuario")));
+
+  await abrir(partida("Magnus", "minhaconta"));   // maiúsculas não importam
+  console.log("usuário das pretas — girado:", girado(), "| nomes nos lados certos:",
+    $("nmBot").textContent === "minhaconta" && $("nmTop").textContent === "Magnus", "|", lados());
+
+  await abrir(partida("MINHACONTA", "Magnus"));
+  console.log("usuário das brancas — girado:", girado(), "| nomes nos lados certos:",
+    $("nmBot").textContent === "MINHACONTA" && $("nmTop").textContent === "Magnus", "|", lados());
+
+  await abrir(partida("Paul Morphy", "Duque Karl"));
+  console.log("partida de terceiros — girado:", girado(), "|", lados());
+
+  // escolha manual manda: navegar, trocar de idioma e reabrir não desfazem
+  $("btnFlip").click(); await wait(50);
+  const manual = girado();
+  $("btnNext").click(); $("btnEnd").click(); await wait(80);
+  const aposNavegar = girado();
+  $("btnLangEn").click(); await wait(80); $("btnLangPt").click(); await wait(80);
+  console.log("giro manual mantido — ao girar:", manual, "| navegando:", aposNavegar,
+    "| trocando de idioma:", girado());
+
+  // partida nova recomeça a decisão (aqui, de novo, ninguém reconhecido)
+  await abrir(partida("Paul Morphy", "Duque Karl"));
+  console.log("partida nova zera a escolha manual — girado:", girado());
 
   $("btnCopyFen").click(); $("btnCopyPgn").click(); await wait(50);
   console.log("copiar sem clipboard:", $("toast").textContent);

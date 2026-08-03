@@ -20,8 +20,8 @@ const fmtData = (s) => I18.data(s);
 /* ---------- classificações ----------
    As chaves (brilhante, capivarada…) são identidade interna e vão para o
    armazenamento e para os NAG do PGN: não mudam com o idioma. O nome que
-   aparece na tela vem do dicionário, por clsNome(). "Capivarada" é o nome
-   do selo nas duas línguas — em inglês o significado vai no tooltip. */
+   aparece na tela vem do dicionário, por clsNome(): a chave "capivarada"
+   é "Capivarada" em português e "Blunder" em inglês. */
 const CLS = {
   brilhante : { cor:"#26c2a3", sym:"!!", ord:0 },
   excelente : { cor:"#5b8bb0", sym:"!",  ord:1 },
@@ -51,6 +51,7 @@ const S = {
   fens: [],         // fens[i] = posição após i lances (fens[0] = inicial)
   ply: 0,
   flipped: false,
+  flipManual: false, // usuário girou o tabuleiro nesta partida (manda na perspectiva)
   positions: [],    // avaliação de cada posição (POV brancas)
   perMove: [],      // {cls, loss, accuracy, best, pv}
   accuracy: null,
@@ -576,6 +577,44 @@ function aberturaHtml(a) {
 }
 
 /* ============================================================
+   De quem é a perspectiva do tabuleiro
+   ------------------------------------------------------------
+   Quem estuda as próprias partidas quer vê-las do seu lado: se a
+   partida é sua e você jogou de pretas, o tabuleiro abre girado.
+   COMO SABEMOS QUEM É "O USUÁRIO": o nome digitado na busca online
+   (#userBox) — é o único lugar onde a pessoa se identifica. Ele fica
+   guardado no navegador (mesmo padrão do som e do idioma, mesmo
+   try/catch), então a preferência sobrevive ao recarregar a página e
+   vale também para PGN colado/arquivo e para as análises salvas.
+   QUANDO NÃO GIRA: sem nome guardado, ou quando o nome não é nenhum
+   dos dois jogadores (um PGN histórico entre terceiros, por exemplo),
+   fica como sempre foi — brancas embaixo. E o giro manual (botão ou
+   tecla F) manda: escolhido à mão, ninguém gira por baixo.
+   ============================================================ */
+const CHAVE_USUARIO = "plyscope.usuario";
+let usuario = "";
+try { usuario = (localStorage.getItem(CHAVE_USUARIO) || "").trim(); } catch (e) {}
+function lembrarUsuario(nome) {
+  usuario = String(nome || "").trim();
+  try { localStorage.setItem(CHAVE_USUARIO, usuario); } catch (e) {}
+}
+/** "w", "b" ou null — o lado do usuário nesta partida, pelas tags do PGN. */
+function ladoDoUsuario(h) {
+  const alvo = usuario.toLowerCase();
+  if (!alvo) return null;
+  const nome = (v) => String(v == null ? "" : v).trim().toLowerCase();
+  if (nome(h && h.White) === alvo) return "w";
+  if (nome(h && h.Black) === alvo) return "b";
+  return null;
+}
+/** Perspectiva da partida recém-carregada. Só decide quando ninguém decidiu. */
+function aplicarPerspectiva() {
+  if (S.flipManual) return;
+  S.flipped = ladoDoUsuario(S.headers) === "b";
+}
+if (usuario && $("userBox") && !$("userBox").value) $("userBox").value = usuario;
+
+/* ============================================================
    Carregar PGN
    ============================================================ */
 function loadPgn(pgn) {
@@ -591,6 +630,7 @@ function loadPgn(pgn) {
   S.headers = c.getHeaders() || {};
   S.moves = []; S.fens = []; S.positions = []; S.perMove = []; S.accuracy = null;
   S.explore = null; S.sel = null;
+  S.flipManual = false;          // partida nova, escolha de perspectiva em aberto
 
   const rep = new Chess();
   if (S.headers.FEN) { try { rep.load(S.headers.FEN); } catch (e) {} }
@@ -609,6 +649,7 @@ function loadPgn(pgn) {
   S.ply = 0;
   S.chess = rep;
   S.abertura = aberturaDeFens(S.fens, S.headers);
+  aplicarPerspectiva();
   if (typeof pararPlay === "function") pararPlay();
   renderPlayers(); renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
   $("btnAnalyze").disabled = false;
@@ -1271,7 +1312,7 @@ $("btnStart").onclick = () => goTo(0);
 $("btnPrev").onclick  = () => goTo(S.ply - 1);
 $("btnNext").onclick  = () => goTo(S.ply + 1);
 $("btnEnd").onclick   = () => goTo(S.moves.length);
-$("btnFlip").onclick  = () => { S.flipped = !S.flipped; renderBoard(); renderPlayers(); renderEvalBar(); };
+$("btnFlip").onclick  = () => { S.flipped = !S.flipped; S.flipManual = true; renderBoard(); renderPlayers(); renderEvalBar(); };
 
 /* ---------- reprodução automática ---------- */
 let playTimer = null;
@@ -1398,6 +1439,7 @@ function avisoBusca(k, p) { buscaMsg = { k, p }; pintarBusca(); }
 $("btnFetch").onclick = async () => {
   const user = $("userBox").value.trim();
   if (!user) { toast(tr("buscar.digite")); return; }
+  lembrarUsuario(user);          // é aqui que a pessoa diz quem é (ver aplicarPerspectiva)
   const site = $("site").value;
   avisoBusca("buscar.buscando");
   try {
@@ -1472,8 +1514,8 @@ function toast(msg) {
   t.textContent = msg; t.classList.add("on");
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 2600);
 }
-/* A legenda já escreve o nome ao lado do selo: o tooltip só entra quando a
-   língua precisa explicar (Capivarada → blunder). */
+/* A legenda já escreve o nome ao lado do selo: o tooltip só ganha texto extra
+   se alguma língua vier a precisar explicar o nome de um selo (cls.*.dica). */
 function renderLegend() {
   $("legend").innerHTML = CLS_ORDER
     .map((k) => `<span title="${esc(clsDica(k))}">${icon(k, 14, true)}${esc(clsNome(k))}</span>`).join("");

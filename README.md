@@ -87,6 +87,7 @@ Antes do veredito, todo candidato a sacrifício é **reanalisado com mais profun
 - Gráfico de vantagem clicável — clique no vale e vá direto para a Capivarada.
 
 **Tabuleiro**
+- Abre do seu lado: se o usuário que você digitou na busca online é um dos jogadores do PGN e jogou de pretas, o tabuleiro já vem girado. Girou à mão, a sua escolha manda.
 - Barra de avaliação, seta do melhor lance e selo do lance jogado sobre a casa.
 - Três melhores linhas do motor, com cada lance clicável.
 - **Exploração livre:** clique na peça, clique no destino, o motor avalia na hora. *Voltar à partida* desfaz.
@@ -98,7 +99,7 @@ Antes do veredito, todo candidato a sacrifício é **reanalisado com mais profun
 - Escura grafite, layout de aplicativo: o tabuleiro fica sempre visível, sem rolagem.
 - **Bilíngue: português do Brasil e inglês**, com os botões `PT`/`EN` no topo. A troca é imediata e não perde a análise que estiver na tela — relatório, selos, gráfico e análises salvas são reetiquetados na hora, sem recarregar a página. O idioma inicial vem do navegador (`navigator.language`) e a escolha fica guardada.
 - Números no formato de cada língua (`96,2%` × `96.2%`, `1,2 s` × `1.2s`), datas idem, e os nomes das aberturas nas duas línguas — a notação de xadrez (SAN/FEN/PGN/ECO) nunca é traduzida.
-- O selo **Capivarada** continua Capivarada nas duas línguas — em inglês o tooltip explica que é o *blunder*.
+- O selo **Capivarada** só existe em português: em inglês ele é **Blunder**, porque no meio de uma escala técnica (*Inaccuracy, Mistake…*) a piada não diria nada a quem lê em inglês.
 
 <!-- screenshot -->
 
@@ -252,7 +253,7 @@ O Plyscope usa **chance de vitória** (win%), a mesma ideia do Lichess e do ches
 | **Erro (?)** | Perdeu de 10% a 20%. |
 | **Capivarada (??)** | Perdeu mais de 20%. |
 
-Em inglês os selos são *Brilliant, Great, Best, Excellent, Good, Forced, Inaccuracy* e *Mistake* — só o **Capivarada** fica como está, com o significado (*blunder*) no tooltip.
+Em inglês os selos são *Brilliant, Great, Best, Excellent, Good, Forced, Inaccuracy, Mistake* e *Blunder* — a **Capivarada** é o nome do último só em português.
 
 **Precisão** sai das fórmulas públicas do Lichess: a perda de chance de vitória vira precisão do lance, e a precisão da partida é a média entre a média ponderada pela volatilidade da posição e a média harmônica. Os números ficam próximos dos do chess.com, mas não idênticos — a fórmula deles é fechada.
 

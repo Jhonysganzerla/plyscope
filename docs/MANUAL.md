@@ -31,6 +31,8 @@ No macOS e no Linux o script usa o **Python 3**, que quase sempre já está inst
 
 Atalhos: `←` `→` navegam, `Home`/`End` vão ao início/fim, `F` gira o tabuleiro, `espaço` liga a reprodução automática, `M` liga e desliga o som.
 
+**De que lado o tabuleiro abre.** O usuário que você digita em *Buscar partidas online* fica guardado neste navegador. Sempre que o nome bater com um dos jogadores do PGN — venha ele da busca, de um arquivo, de um texto colado ou de uma análise salva — o tabuleiro abre do seu lado: jogou de pretas, abre girado. Numa partida entre outras duas pessoas, ou sem nome guardado, ele abre como sempre, brancas embaixo. E se você girar à mão (botão ou `F`), a sua escolha vale para aquela partida — nada gira por baixo de você.
+
 ## Reprodução automática e som
 
 O botão de **play**, entre as setas de navegação, passa os lances sozinho — a velocidade fica no seletor ao lado (0,6 s a 3,5 s por lance). A barra de espaço liga e desliga; qualquer navegação manual pausa.
@@ -92,7 +94,7 @@ Os botões **`PT`** e **`EN`**, no canto do topo, trocam a interface entre portu
 
 Na primeira vez o app segue o idioma do navegador; depois disso vale a sua escolha, que fica guardada.
 
-Em inglês os selos são *Brilliant, Great, Best, Excellent, Good, Forced, Inaccuracy* e *Mistake* — só a **Capivarada** continua Capivarada, com o significado (*blunder*) no tooltip.
+Em inglês os selos são *Brilliant, Great, Best, Excellent, Good, Forced, Inaccuracy, Mistake* e *Blunder* — a **Capivarada** é o nome do último só em português.
 
 ## Um thread ou vários
 

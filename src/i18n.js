@@ -188,8 +188,9 @@ const STR = {
   "motor.offline":      ["Motor indisponível.", "Engine unavailable."],
 
   /* ---------- legenda e selos ----------
-     Capivarada fica Capivarada nas duas línguas: é o nome do selo,
-     piada interna do projeto. Em inglês o significado vai no tooltip. */
+     "Capivarada" é o nome do selo em português, piada interna do projeto.
+     Em inglês ele é "Blunder": no meio de uma escala técnica (Inaccuracy,
+     Mistake…) uma palavra em português não diz nada a quem lê em inglês. */
   "legenda.titulo":       ["Legenda", "Legend"],
 
   /* ---------- rodapé do trilho ---------- */
@@ -204,8 +205,7 @@ const STR = {
   "cls.forcado":          ["Forçado", "Forced"],
   "cls.impreciso":        ["Impreciso", "Inaccuracy"],
   "cls.erro":             ["Erro", "Mistake"],
-  "cls.capivarada":       ["Capivarada", "Capivarada"],
-  "cls.capivarada.dica":  ["", "blunder"],
+  "cls.capivarada":       ["Capivarada", "Blunder"],
 
   /* ---------- avisos rápidos (toast) ---------- */
   "toast.pgnIlegivel":       ["Não consegui ler esse PGN.", "I couldn't read that PGN."],
@@ -291,7 +291,8 @@ function t(chave, params) {
   if (!params) return s;
   return s.replace(/\{(\w+)\}/g, (m, k) => (params[k] != null ? String(params[k]) : m));
 }
-/** Como t(), mas chave ausente vira "" — para textos opcionais (tooltip do Capivarada). */
+/** Como t(), mas chave ausente vira "" — para textos opcionais (o "cls.*.dica"
+    de um selo cujo nome precise de explicação extra em alguma língua). */
 function opt(chave, params) {
   return STR[chave] ? t(chave, params) : "";
 }
