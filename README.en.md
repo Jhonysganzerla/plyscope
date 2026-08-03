@@ -83,6 +83,11 @@ Before the verdict, every sacrifice candidate is **re-analyzed at greater depth*
 - Three depths: fast (12), standard (16), deep (20).
 - Automatic **second pass**: suspicious moves and sacrifices go back to the engine with 6 extra plies of depth.
 
+**Training**
+- **Learn from your mistakes:** after the analysis, the app queues your Mistakes and Blunders, rewinds the board to the position before each one and asks for the best move.
+- Get it right and it **plays the continuation** so you see why. Get it wrong and it tells you what the move cost, then offers another try, a hint, or the answer.
+- Ends with a summary and a redo of whatever slipped through. Runs **without touching the engine**: it uses the analysis you already have.
+
 **Report**
 - Accuracy for both players, using Lichess's published formulas.
 - Counts per move type and the **key moments** of the game.

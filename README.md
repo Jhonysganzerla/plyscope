@@ -81,6 +81,11 @@ Antes do veredito, todo candidato a sacrifício é **reanalisado com mais profun
 - Três profundidades: rápida (12), padrão (16), profunda (20).
 - **Segunda passada** automática: lances suspeitos e sacrifícios voltam para o motor com 6 níveis a mais.
 
+**Treino**
+- **Aprenda com seus erros:** depois de analisar, o app monta uma fila com os seus Erros e Capivaradas, devolve o tabuleiro à posição de antes de cada um e pede o melhor lance.
+- Acertou, ele **reproduz a continuação** para mostrar por que era melhor. Errou, diz quanto aquilo custou e oferece nova tentativa, dica ou a resposta.
+- Fecha com um resumo e a opção de refazer só os que passaram batido. Roda **sem tocar no motor**: usa a análise que já está feita.
+
 **Relatório**
 - Precisão dos dois jogadores pelas fórmulas públicas do Lichess.
 - Contagem por tipo de lance e **momentos decisivos** da partida.
@@ -88,6 +93,7 @@ Antes do veredito, todo candidato a sacrifício é **reanalisado com mais profun
 
 **Tabuleiro**
 - Abre do seu lado: se o usuário que você digitou na busca online é um dos jogadores do PGN e jogou de pretas, o tabuleiro já vem girado. Girou à mão, a sua escolha manda.
+- As peças **deslizam** entre as casas ao navegar lance a lance, inclusive no roque, na captura e no *en passant*. Pulos longos continuam instantâneos, e quem pede `prefers-reduced-motion` não vê animação nenhuma.
 - Barra de avaliação, seta do melhor lance e selo do lance jogado sobre a casa.
 - Três melhores linhas do motor, com cada lance clicável.
 - **Exploração livre:** clique na peça, clique no destino, o motor avalia na hora. *Voltar à partida* desfaz.
