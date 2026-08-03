@@ -95,6 +95,7 @@ Before the verdict, every sacrifice candidate is **re-analyzed at greater depth*
 
 **Board**
 - Opens from your side: if the username you typed in the online search is one of the players in the PGN and played Black, the board comes up already flipped. Flip it by hand and your choice wins.
+- Pieces **slide** between squares as you step through the game — castling, captures and *en passant* included. Long jumps stay instant, and `prefers-reduced-motion` turns animation off.
 - Evaluation bar, best-move arrow and the badge of the move played, right on the square.
 - The engine's three best lines, with every move clickable.
 - **Free exploration:** click the piece, click the destination, the engine evaluates immediately. *Back to the game* undoes it.
