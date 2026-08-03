@@ -392,6 +392,54 @@ h3.sub{
 .keymove .hint{margin-left:auto;text-align:right}
 .keymove .ic{flex:0 0 15px}
 
+/* --- treino "aprenda com seus erros": chamada no relatório + painel próprio --- */
+.train-cta{
+  width:100%;height:auto;min-height:38px;padding:9px 12px;margin-top:2px;
+  justify-content:flex-start;gap:9px;text-align:left;
+}
+.train-cta svg{width:12px;height:12px;flex:0 0 12px}
+.train-cta .n{
+  margin-left:auto;font-family:var(--mono);font-size:11.5px;font-weight:600;
+  opacity:.72;letter-spacing:-.01em;
+}
+.panel.train{overflow:hidden}
+.train-head{
+  display:flex;align-items:center;gap:10px;padding:10px 12px 10px 14px;
+  background:var(--surface-2);border-bottom:1px solid var(--line);
+}
+.train-head b{font-size:13px;font-weight:600;color:var(--tx);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.train-head .k{
+  margin-left:auto;flex:0 0 auto;font-family:var(--mono);font-size:12px;
+  font-variant-numeric:tabular-nums;color:var(--tx-2);
+}
+.panel.train .prog{margin-top:0;border-radius:0;height:2px}
+.panel.train .prog i::after{animation:none}
+.train-when{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--tx-3);margin-bottom:9px}
+.train-when .ic{width:14px;height:14px;flex:0 0 14px}
+.train-q{font-size:13.5px;line-height:1.6;color:var(--tx-2)}
+.train-ask{margin-top:7px;color:var(--tx);font-weight:600}
+.train-note{
+  margin-top:12px;padding:10px 12px;border-radius:var(--r-sm);
+  border:1px solid var(--hair);background:var(--surface-2);
+  font-size:13px;line-height:1.6;color:var(--tx-2);
+}
+.train-note.good{border-color:#33452c;background:#171c15;color:#c3d6b4}
+.train-note.bad{border-color:#4a3a28;background:#1e1a14;color:#dcc3a4}
+.train-line{margin-top:9px;font-size:13px;line-height:1.85;color:var(--tx-3);word-break:break-word}
+.train-line b{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--tx-3)}
+.train-line span{padding:2px 4px;border-radius:var(--r-xs)}
+.train-line span.on{background:var(--surface-3);color:var(--tx);font-weight:600}
+.train-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.train-sum{
+  display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;
+  font-size:13px;color:var(--tx-2);
+}
+.train-sum .v{
+  font-family:var(--mono);font-size:22px;font-weight:600;color:var(--tx);
+  text-align:right;font-variant-numeric:tabular-nums;letter-spacing:-.03em;
+}
+
 /* =========================================================
    8. LANCES
    ========================================================= */
@@ -639,6 +687,18 @@ h3.sub{
         </div>
         <div class="prog"><i id="progBar"></i></div>
         <div class="status-msg" id="statusMsg"></div>
+      </div>
+
+      <!-- treino: aprenda com seus erros (ocupa o lugar das abas enquanto dura) -->
+      <div class="panel train" id="panelTrain" style="display:none">
+        <div class="train-head">
+          <b data-i18n="treino.titulo">Aprenda com seus erros</b>
+          <span class="k" id="trainCount"></span>
+          <button class="btn ghost sm" id="btnTrainExit" data-i18n="treino.sair"
+            data-i18n-title="treino.sair.dica" title="Sair do treino e voltar à análise">Sair</button>
+        </div>
+        <div class="prog"><i id="trainBar"></i></div>
+        <div class="pad" id="trainBody"></div>
       </div>
 
       <div class="panel panel-main">
