@@ -28,6 +28,7 @@ No macOS e no Linux o script usa o **Python 3**, que quase sempre já está inst
 4. **Lances** — cada lance recebe um selo. Clique para ir até a posição.
 5. **Motor** — as três melhores linhas na posição atual. O botão *Analisar esta posição a fundo* roda o motor sem limite de profundidade. A linha cinza embaixo diz em que modo o motor está rodando (veja *Um thread ou vários*).
 6. **Explorar** — clique na peça e depois na casa de destino para testar variações; o motor avalia na hora. Clicar num lance das linhas do motor também joga a variação até ali. Use *Voltar à partida* para sair.
+7. **Aprenda com seus erros** — no fim do relatório, o treino devolve cada Erro e cada Capivarada ao tabuleiro para você procurar o lance certo (veja abaixo).
 
 Atalhos: `←` `→` navegam, `Home`/`End` vão ao início/fim, `F` gira o tabuleiro, `espaço` liga a reprodução automática, `M` liga e desliga o som.
 
@@ -75,6 +76,19 @@ Um lance só recebe o selo quando passa por quatro perguntas, as mesmas que sepa
 4. **Continua de pé?** Depois do sacrifício a posição tem que seguir boa, e a partida tem que estar em jogo — sacrificar já perdido, ou com a vitória no bolso, não é brilhante (a exceção é oferecer peça inteira ou mais).
 
 Além disso, todo candidato a sacrifício é reanalisado com mais profundidade antes do veredito, porque é justamente onde a análise rasa erra: o lance parece um erro até o motor enxergar a continuação.
+
+## Aprenda com seus erros
+
+Terminada a análise, o fim do relatório traz **Aprenda com seus erros**, com quantos lances há para revisar. A fila são os **Erros** e as **Capivaradas** da partida, na ordem em que aconteceram — se o app souber de que lado você jogou (partida trazida pela busca com o seu usuário), só entram os seus.
+
+Cada item volta o tabuleiro para a posição **de antes do erro**, girado para o lado de quem joga e com o último lance do adversário realçado. O painel conta o que aconteceu ("Você jogou Nf3 e perdeu 24% de chance de vitória") e pede o melhor lance. Nenhuma seta e nenhum selo aparecem: o gabarito fica escondido.
+
+- **Acertou** — o painel confirma e **mostra por quê**: a variação principal segue sozinha por até seis meios-lances, com o texto acompanhando o tabuleiro. Depois, *Próximo erro*.
+- **Errou** — a peça volta para o lugar e o painel diz o que aquele lance custa, quando dá para saber (é o caso do lance que você jogou na partida). Dá para *tentar de novo*, pedir uma **dica** (a peça certa, sem a casa) ou *ver a resposta*.
+
+O contador mostra "3 de 7"; no fim vem o resumo — quantos saíram de primeira, quantos com dica ou nova tentativa e quantos passaram batido — com o botão de refazer só os que faltaram. *Sair* volta à análise exatamente como estava, e o treino nunca chama o motor: usa o que a análise já descobriu.
+
+Reabrir uma **análise salva** também abre o treino. O registro guardado no navegador continua sem as linhas do motor, com uma exceção: os primeiros seis meios-lances da variação **das posições de erro**, que são o "por quê" do treino e custam ~40 bytes cada. Análises salvas por versões anteriores do Plyscope não têm essa parte — o exercício acontece igual, só sem a continuação, e o painel avisa.
 
 ## Profundidade
 

@@ -588,6 +588,7 @@ function loadPgn(pgn) {
   const hist = c.history({ verbose: true });
   if (!hist.length) { toast(tr("toast.pgnSemLances")); return false; }
 
+  if (S.treino) treinoSair();          // partida nova encerra o treino da anterior
   S.headers = c.getHeaders() || {};
   S.moves = []; S.fens = []; S.positions = []; S.perMove = []; S.accuracy = null;
   S.explore = null; S.sel = null;
@@ -850,7 +851,11 @@ function renderBoard() {
 function lastMove() {
   if (S.explore) {
     const h = S.explore.chess.history({ verbose: true });
-    return h.length ? h[h.length - 1] : null;
+    if (h.length) return h[h.length - 1];
+    // no treino a variação começa vazia: quem tem que ficar realçado é o
+    // lance do adversário que criou o problema
+    if (S.treino) return S.ply > 0 ? S.moves[S.ply - 1] : null;
+    return null;
   }
   return S.ply > 0 ? S.moves[S.ply - 1] : null;
 }
@@ -921,6 +926,7 @@ $("board").addEventListener("click", (ev) => {
 });
 
 function makeExploreMove(mv) {
+  if (S.treino) { treinoJogada(mv); return; }   // no treino o lance é uma resposta
   if (!S.explore) {
     const c = new Chess(S.fens[S.ply]);
     S.explore = { chess: c, base: S.ply };
@@ -1074,6 +1080,19 @@ function renderReport() {
         <span class="hint">${esc(tr("rel.perdeu", { n: k.pm.loss.toFixed(0) }))}</span></button>`;
     }
   }
+  // chamada do treino — só existe quando a partida tem o que treinar
+  const filaTreino = filaDeErros(ladoDoUsuario());
+  let treinoHtml = "";
+  if (filaTreino.length) {
+    treinoHtml = `<h3 class="sub">${esc(tr("treino.sub"))}</h3>
+      <button class="btn primary train-cta" id="btnTrainStart">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 4.8v14.4L19 12z"/></svg>
+        <span>${esc(tr("treino.cta"))}</span>
+        <span class="n">${esc(tr(filaTreino.length === 1 ? "treino.cta.n1" : "treino.cta.n",
+                                 { n: filaTreino.length }))}</span>
+      </button>
+      <p class="hint" style="margin-top:9px">${esc(tr("treino.explica"))}</p>`;
+  }
   const unidade = esc(tr("rel.precisao"));
   $("reportBody").innerHTML = aberturaHtml(S.abertura) + `
     <div class="accbox">
@@ -1085,8 +1104,9 @@ function renderReport() {
     <canvas id="graph"></canvas>
     <div class="caption">${esc(tr("rel.grafico"))}</div>
     <div class="report-grid">${rows}</div>
-    ${keyHtml}`;
+    ${keyHtml}${treinoHtml}`;
   $("reportBody").querySelectorAll("[data-goto]").forEach((b) => (b.onclick = () => goTo(+b.dataset.goto)));
+  if ($("btnTrainStart")) $("btnTrainStart").onclick = () => treinoIniciar();
   if ($("exportRow")) $("exportRow").style.display = "";
   drawGraph();
 }
@@ -1252,6 +1272,7 @@ async function analyzeCurrent(quick) {
    Navegação
    ============================================================ */
 function goTo(ply, opts) {
+  if (S.treino) return;            // no treino quem manda na posição é a fila
   const alvo = Math.max(0, Math.min(S.moves.length, ply));
   const anterior = S.ply;
   if (!(opts && opts.auto)) pararPlay();
@@ -1287,6 +1308,7 @@ function passo() {
   if (S.ply >= S.moves.length) pararPlay();
 }
 function alternarPlay() {
+  if (S.treino) return;
   if (playTimer) { pararPlay(); return; }
   if (!S.moves.length) { toast(tr("toast.carregueAntes")); return; }
   Snd.init();
@@ -1398,6 +1420,7 @@ function avisoBusca(k, p) { buscaMsg = { k, p }; pintarBusca(); }
 $("btnFetch").onclick = async () => {
   const user = $("userBox").value.trim();
   if (!user) { toast(tr("buscar.digite")); return; }
+  S.usuario = user;              // é o que revela de que lado o usuário jogou
   const site = $("site").value;
   avisoBusca("buscar.buscando");
   try {
@@ -1498,7 +1521,9 @@ window.addEventListener("resize", () => drawGraph());
 
    O QUE É GUARDADO: o PGN (os lances e as casas são reconstruídos por
    loadPgn) + avaliação compacta de cada posição + classificação de
-   cada lance + precisão. Nada mais.
+   cada lance + precisão. Mais uma única exceção à regra de não guardar
+   pv: os primeiros meios-lances da variação NAS POSIÇÕES DE ERRO, que
+   são a resposta do treino ("por que este lance?") e custam ~40 B cada.
    ============================================================ */
 const Saved = {
   KEY: "plyscope.analises.v1",
@@ -1618,6 +1643,14 @@ function salvarAnalise() {
       pos: S.positions.map(posParaArr),
       pm: S.perMove.map(pmParaArr),
     };
+    /* A variação principal continua fora do registro — menos nas posições
+       que entram na fila do treino, onde ela É o conteúdo ("por que este
+       lance?"). São ~40 B por erro — ~300 B numa partida de 80 lances com
+       8 erros, contra os ~2 KB da pv de todas as posições. */
+    const pvt = pvDoTreino();
+    if (Object.keys(pvt).length) rec.pvt = pvt;
+    const us = String(S.usuario || "").trim();
+    if (us) rec.us = us;                     // de que lado o usuário jogou
     const lista = Saved.ler().filter((r) => r && r.id !== rec.id);   // sem duplicar
     lista.unshift(rec);
     const ok = Saved.gravar(lista);
@@ -1635,6 +1668,14 @@ function abrirSalva(id) {
   const pm = (rec.pm || []).map(arrParaPm);
   if (pos.length !== S.fens.length) { toast(tr("toast.analiseNaoBate")); return; }
   S.positions = pos;
+  /* Devolve a variação às posições de erro (registro antigo não tem: o treino
+     funciona igual, só fica sem a continuação — ver renderTreino). */
+  const pvt = rec.pvt || {};
+  Object.keys(pvt).forEach((k) => {
+    const p = S.positions[+k];
+    if (p) p.pv = String(pvt[k]).split(" ").filter(Boolean);
+  });
+  if (rec.us) S.usuario = rec.us;
   S.perMove = pm.slice(0, S.moves.length);
   while (S.perMove.length < S.moves.length) S.perMove.push(null);
   S.accuracy = rec.acc && (rec.acc.w != null || rec.acc.b != null) ? rec.acc : null;
@@ -1675,6 +1716,352 @@ function renderSaved() {
     renderSaved();
     toast(tr(ok ? "toast.analiseApagada" : "toast.naoApagou"));
   }));
+}
+
+/* ============================================================
+   Treino — "Aprenda com seus erros"
+   ------------------------------------------------------------
+   A fila são os Erros e as Capivaradas da partida, na ordem em que
+   aconteceram. Nada aqui recalcula nada: a classificação, a perda e o
+   melhor lance saem prontos da análise (S.perMove / S.positions).
+
+   O tabuleiro é reaproveitado como está. O treino se apoia no mesmo
+   S.explore do modo exploração — é o que já faz o clique casa a casa
+   funcionar, o que tira as setas do melhor lance da tela (o gabarito!)
+   e o que garante que S.moves/S.positions/S.perMove não sejam tocados.
+   Sair do treino é jogar S.treino fora e voltar ao lance de origem.
+
+   A continuação da variação vem de S.positions[i].pv. As análises salvas
+   não guardam pv — menos, agora, nas posições desta fila (ver salvarAnalise).
+   Registro antigo, sem pv, não quebra: o exercício acontece igual e o
+   painel explica que a linha não veio. Não reanalisamos sob demanda de
+   propósito: seria a única parte do app que acorda o motor sozinha, para
+   um comentário — quem quiser a linha tem o botão da aba Motor.
+   ============================================================ */
+S.treino = null;                 // {fila, k, res, fase, linha, …} enquanto dura
+S.usuario = S.usuario || null;   // nome do usuário, quando a partida veio da busca
+
+const TREINO_PV = 6;             // meios-lances da continuação (guardados e mostrados)
+const TREINO_PERDA = 10;         // perda mínima de chance de vitória para entrar na fila
+const TREINO_RITMO = 900;        // ms entre os lances da continuação
+const TREINO_DESFAZ = 620;       // ms que o lance errado fica na tela antes de voltar
+
+/** Lado do usuário, quando dá para saber (partida buscada pelo nome dele). */
+function ladoDoUsuario() {
+  const u = String(S.usuario || "").trim().toLowerCase();
+  if (!u) return null;
+  const h = S.headers || {};
+  if (String(h.White || "").trim().toLowerCase() === u) return "w";
+  if (String(h.Black || "").trim().toLowerCase() === u) return "b";
+  return null;
+}
+
+/** Índices dos lances que entram no treino. `lado` limita a um dos jogadores. */
+function filaDeErros(lado) {
+  const out = [];
+  S.perMove.forEach((pm, i) => {
+    if (!pm || (pm.cls !== "erro" && pm.cls !== "capivarada")) return;
+    if (!(pm.loss >= TREINO_PERDA)) return;
+    if (lado && S.moves[i].color !== lado) return;
+    if (!S.positions[i] || !S.positions[i].best) return;
+    out.push(i);
+  });
+  return out;
+}
+
+/** Variação das posições da fila, compacta, para o registro salvo. */
+function pvDoTreino() {
+  const out = {};
+  for (const i of filaDeErros(null)) {          // os dois lados: a perspectiva pode mudar
+    const p = S.positions[i];
+    if (p && p.pv && p.pv.length > 1) out[i] = p.pv.slice(0, TREINO_PV).join(" ");
+  }
+  return out;
+}
+
+function abaAtiva() {
+  const b = document.querySelector(".tabs button.on");
+  return b ? b.dataset.tab : "report";
+}
+
+/* ---------- entrar e sair ---------- */
+function treinoIniciar(fila) {
+  const lado = ladoDoUsuario();
+  const f = fila && fila.length ? fila.slice() : filaDeErros(lado);
+  if (!f.length) { toast(tr("treino.vazio")); return; }
+  pararPlay();
+  if (!S.analyzing) Engine.stop();
+  const volta = (S.treino && S.treino.volta) ||
+                { ply: S.ply, flipped: S.flipped, aba: abaAtiva() };
+  treinoPararLinha();
+  S.treino = { fila: f, k: 0, lado, res: {}, fase: "pergunta", tentativas: 0,
+               dica: false, errado: null, certo: "", linha: [], passo: 0,
+               timer: null, travado: false, desfazer: false, volta };
+  $("panelTrain").style.display = "";
+  const pm = document.querySelector(".panel-main");
+  if (pm) pm.style.display = "none";
+  treinoPosicao();
+}
+
+function treinoSair() {
+  const t = S.treino;
+  if (!t) return;
+  treinoPararLinha();
+  S.treino = null;
+  S.explore = null; S.exploreEval = null; S.sel = null;
+  S.flipped = t.volta.flipped;
+  S.ply = Math.max(0, Math.min(S.moves.length, t.volta.ply));
+  $("panelTrain").style.display = "none";
+  const pm = document.querySelector(".panel-main");
+  if (pm) pm.style.display = "";
+  renderPlayers(); renderBoard(); renderEvalBar(); renderEngineTab();
+  highlightMove(); drawGraph();
+  showTab(t.volta.aba);
+}
+$("btnTrainExit").onclick = treinoSair;
+
+/* ---------- um item da fila ---------- */
+function treinoPosicao() {
+  const t = S.treino;
+  if (!t) return;
+  treinoPararLinha();
+  const i = t.fila[t.k];
+  t.fase = "pergunta"; t.tentativas = 0; t.dica = false;
+  t.errado = null; t.certo = ""; t.linha = []; t.passo = 0;
+  t.travado = false; t.desfazer = false;
+  S.ply = i;
+  S.sel = null;
+  S.explore = { chess: new Chess(S.fens[i]), base: i };
+  S.exploreEval = null;
+  S.flipped = S.moves[i].color === "b";        // sempre do ponto de vista de quem joga
+  renderPlayers(); renderBoard(); renderEvalBar();
+  renderTreino();
+}
+
+function treinoPararLinha() {
+  const t = S.treino;
+  if (t && t.timer) { clearTimeout(t.timer); t.timer = null; }
+}
+
+/** Tira da tela o lance errado que ainda estiver posto. */
+function treinoDesfazerErrado() {
+  const t = S.treino;
+  if (!t || !t.desfazer) return;
+  try { S.explore.chess.undo(); } catch (e) {}
+  t.desfazer = false; t.travado = false;
+  treinoPararLinha();
+}
+
+/* ---------- a jogada do usuário ---------- */
+function treinoJogada(mv) {
+  const t = S.treino;
+  if (!t || t.travado) return;
+  if (t.fase !== "pergunta" && t.fase !== "errou") return;
+  treinoDesfazerErrado();
+  const i = t.fila[t.k];
+  const best = String((S.positions[i] || {}).best || "");
+  const uci = mv.from + mv.to + (mv.promotion || "");
+  const acertou = !!best && uci.slice(0, 4) === best.slice(0, 4) &&
+                  (!best[4] || best[4] === (mv.promotion || "q"));
+  let feito = null;
+  try { feito = S.explore.chess.move({ from: mv.from, to: mv.to, promotion: mv.promotion || "q" }); }
+  catch (e) {}
+  if (!feito) return;
+  S.sel = null;
+  somDoLance(feito.san);
+
+  if (acertou) {
+    t.res[i] = (t.dica || t.tentativas > 0) ? "dica" : "primeira";
+    t.fase = "acertou";
+    t.certo = feito.san;
+    treinoMontarLinha();
+    renderBoard();
+    treinoTocar(1);                     // a continuação segue de onde ele parou
+    return;
+  }
+  t.tentativas++;
+  t.errado = { san: feito.san, uci };
+  t.fase = "errou";
+  t.travado = true; t.desfazer = true;
+  renderBoard(); renderTreino();
+  t.timer = setTimeout(() => {
+    if (S.treino !== t) return;
+    treinoDesfazerErrado();
+    renderBoard();
+  }, TREINO_DESFAZ);
+}
+
+function treinoTentarDeNovo() {
+  const t = S.treino;
+  if (!t) return;
+  treinoDesfazerErrado();
+  t.fase = "pergunta"; t.errado = null;
+  renderBoard(); renderTreino();
+}
+
+function treinoRevelar() {
+  const t = S.treino;
+  if (!t || t.fase === "acertou" || t.fase === "resposta") return;
+  treinoDesfazerErrado();
+  const i = t.fila[t.k];
+  t.res[i] = "resposta";
+  t.fase = "resposta";
+  treinoMontarLinha();
+  t.certo = t.linha.length ? t.linha[0].san : "";
+  renderBoard();
+  treinoTocar(0);                       // aqui até o lance certo é mostrado
+}
+
+function treinoProximo() {
+  const t = S.treino;
+  if (!t) return;
+  treinoPararLinha();
+  if (t.k + 1 >= t.fila.length) { t.fase = "resumo"; renderTreino(); return; }
+  t.k++;
+  treinoPosicao();
+}
+
+/* ---------- a continuação ----------
+   A linha começa exatamente no lance certo, para casar com o que já está
+   no tabuleiro. Se o melhor lance do motor não abrir a pv (acontece quando
+   o bestmove vem de uma iteração posterior à última pv), sobra só ele. */
+function treinoMontarLinha() {
+  const t = S.treino, i = t.fila[t.k];
+  const pos = S.positions[i] || {};
+  let ucis = (pos.pv || []).slice(0, TREINO_PV);
+  if (!ucis.length || ucis[0].slice(0, 4) !== String(pos.best || "").slice(0, 4))
+    ucis = pos.best ? [pos.best] : [];
+  t.linha = uciLineToSan(S.fens[i], ucis, TREINO_PV);
+  t.passo = 0;
+}
+
+/** Anda a continuação sozinho, um meio-lance por vez, com o texto junto. */
+function treinoTocar(k) {
+  const t = S.treino;
+  if (!t) return;
+  t.passo = Math.min(k, t.linha.length);
+  renderTreino();
+  if (k >= t.linha.length) { t.timer = null; return; }
+  t.timer = setTimeout(() => {
+    if (S.treino !== t) return;
+    const m = t.linha[k];
+    let feito = null;
+    try {
+      feito = S.explore.chess.move({ from: m.uci.slice(0, 2), to: m.uci.slice(2, 4),
+                                     promotion: m.uci[4] || "q" });
+    } catch (e) {}
+    if (!feito) { t.timer = null; return; }
+    S.sel = null;
+    somDoLance(feito.san);
+    renderBoard();
+    treinoTocar(k + 1);
+  }, TREINO_RITMO);
+}
+
+/* ---------- painel ---------- */
+/** Nome da peça que faz o melhor lance — a dica não diz a casa. */
+function pecaDaDica(i) {
+  const pos = S.positions[i] || {};
+  try {
+    const p = new Chess(S.fens[i]).get(String(pos.best || "").slice(0, 2));
+    if (p) return tr("peca." + p.type);
+  } catch (e) {}
+  return "";
+}
+
+function treinoLinhaHtml() {
+  const t = S.treino;
+  if (!t.linha.length) return "";
+  let html = "", primeiro = true;
+  t.linha.forEach((m, k) => {
+    if (m.color === "w") html += `<b>${m.num}.</b> `;
+    else if (primeiro) html += `<b>${m.num}…</b> `;
+    html += `<span class="${k < t.passo ? "on" : ""}">${esc(m.san)}</span> `;
+    primeiro = false;
+  });
+  return `<div class="train-line">${html}</div>`;
+}
+
+function renderTreino() {
+  const t = S.treino;
+  if (!t) return;
+  const body = $("trainBody");
+
+  if (t.fase === "resumo") {
+    const c = { primeira: 0, dica: 0, resposta: 0 };
+    t.fila.forEach((i) => { if (c[t.res[i]] != null) c[t.res[i]]++; });
+    const faltaram = t.fila.filter((i) => t.res[i] !== "primeira");
+    $("trainCount").textContent = tr("treino.resumo.titulo");
+    $("trainBar").style.width = "100%";
+    body.innerHTML = `<div class="train-sum">
+        <div class="v">${c.primeira}</div><div>${esc(tr("treino.resumo.primeira"))}</div>
+        <div class="v">${c.dica}</div><div>${esc(tr("treino.resumo.dica"))}</div>
+        <div class="v">${c.resposta}</div><div>${esc(tr("treino.resumo.resposta"))}</div>
+      </div>
+      <div class="train-row">
+        ${faltaram.length ? `<button class="btn grow" id="btnTrainRedo">${esc(tr("treino.refazer"))}</button>` : ""}
+        <button class="btn primary grow" id="btnTrainDone">${esc(tr("treino.voltar"))}</button>
+      </div>`;
+    if ($("btnTrainRedo")) $("btnTrainRedo").onclick = () => treinoIniciar(faltaram);
+    if ($("btnTrainDone")) $("btnTrainDone").onclick = treinoSair;
+    return;
+  }
+
+  const i = t.fila[t.k];
+  const mv = S.moves[i], pm = S.perMove[i] || {}, pronto = t.fase === "acertou" || t.fase === "resposta";
+  const meu = !!(t.lado && mv.color === t.lado);
+  const perda = (pm.loss || 0).toFixed(0);
+
+  $("trainCount").textContent = tr("treino.contagem", { k: t.k + 1, n: t.fila.length });
+  $("trainBar").style.width = Math.round(((t.k + (pronto ? 1 : 0)) / t.fila.length) * 100) + "%";
+
+  let html = `<div class="train-when">${pm.cls ? icon(pm.cls, 14, true) : ""}
+      <span>${esc(tr("treino.lanceN", { n: mv.num }))}</span>
+      ${pm.cls ? "<span>·</span><span>" + esc(clsNome(pm.cls)) + "</span>" : ""}</div>
+    <div class="train-q">
+      <p>${esc(tr(meu ? "treino.jogou.eu" : "treino.jogou." + mv.color, { san: mv.san, n: perda }))}</p>
+      <p class="train-ask">${esc(tr(meu ? "treino.turno.eu" : "treino.turno." + mv.color))}</p>
+    </div>`;
+
+  if (t.fase === "errou" && t.errado) {
+    let msg = tr("treino.errou", { san: t.errado.san });
+    if (t.errado.uci.slice(0, 4) === mv.uci.slice(0, 4))
+      msg += " " + tr(meu ? "treino.errouCusto.eu" : "treino.errouCusto.outro", { n: perda });
+    else
+      msg += " " + tr("treino.errouSemCusto");
+    html += `<div class="train-note bad">${esc(msg)}</div>`;
+  }
+  if (t.dica && !pronto) {
+    const peca = pecaDaDica(i);
+    if (peca) html += `<p class="hint" style="margin-top:10px">${esc(tr("treino.dicaPeca", { peca }))}</p>`;
+  }
+  if (pronto) {
+    html += `<div class="train-note good">${esc(tr(t.fase === "acertou" ? "treino.acertou" : "treino.eraEsse",
+                                                   { san: t.certo }))}</div>`;
+    if (t.linha.length > 1)
+      html += `<p class="hint" style="margin-top:11px">${esc(tr("treino.porque"))}</p>` + treinoLinhaHtml();
+    else
+      html += `<p class="hint" style="margin-top:11px">${esc(tr("treino.semLinha"))}</p>`;
+  }
+
+  html += '<div class="train-row">';
+  if (pronto) {
+    const ultimo = t.k + 1 >= t.fila.length;
+    html += `<button class="btn primary grow" id="btnTrainNext">${esc(tr(ultimo ? "treino.verResumo" : "treino.proximo"))}</button>`;
+  } else {
+    if (t.fase === "errou")
+      html += `<button class="btn grow" id="btnTrainRetry">${esc(tr("treino.tentarDeNovo"))}</button>`;
+    if (!t.dica)
+      html += `<button class="btn grow" id="btnTrainHint">${esc(tr("treino.dica"))}</button>`;
+    html += `<button class="btn grow" id="btnTrainShow">${esc(tr("treino.resposta"))}</button>`;
+  }
+  html += "</div>";
+
+  body.innerHTML = html;
+  if ($("btnTrainRetry")) $("btnTrainRetry").onclick = treinoTentarDeNovo;
+  if ($("btnTrainHint"))  $("btnTrainHint").onclick  = () => { t.dica = true; renderTreino(); };
+  if ($("btnTrainShow"))  $("btnTrainShow").onclick  = treinoRevelar;
+  if ($("btnTrainNext"))  $("btnTrainNext").onclick  = treinoProximo;
 }
 
 /* ============================================================
@@ -2013,6 +2400,7 @@ function aplicarIdioma() {
   renderLegend();
   renderPlayers(); renderMoves(); renderBoard(); renderEvalBar();
   renderEngineTab(); renderReportBody(); renderSaved();
+  renderTreino();                      // o treino redesenha no meio do exercício
   if (listaPartidas) showGameList(listaPartidas);
 
   for (const b of [$("btnLangPt"), $("btnLangEn")]) {

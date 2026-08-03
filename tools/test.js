@@ -157,7 +157,11 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("uma análise de", (rec.pm || []).length, "lances ocupa", bytes, "B",
     "(" + (bytes / 1024).toFixed(1) + " KB) · ~" +
     Math.round((bytes / Math.max(1, (rec.pm || []).length)) * 80 / 1024 * 10) / 10 + " KB por 80 lances");
-  console.log("sem pv guardada:", !/\"pv\"/.test(bruto || "") && !/[a-h][1-8][a-h][1-8] [a-h][1-8]/.test(bruto || ""));
+  /* as linhas do motor continuam fora do registro; a única variação guardada
+     é a das posições de erro, que é a resposta do treino (ver "treino" abaixo) */
+  console.log("sem as linhas do motor:", !/"pv"/.test(bruto || ""),
+    "| variação guardada:", rec.pvt ? Object.keys(rec.pvt).length + " posições de erro"
+                                    : "(esta partida não tem erro grave)");
   const itens = window.document.querySelectorAll("#savedList .saved");
   console.log("itens na lista de salvas:", itens.length, "|",
     (itens[0] || { textContent: "" }).textContent.replace(/\s+/g, " ").trim());
@@ -390,6 +394,218 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("registros após apagar:", JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length,
     "| itens na lista:", window.document.querySelectorAll("#savedList .saved").length,
     "| aviso:", $("savedHint").textContent.slice(0, 30) + "…");
+
+  /* ================= treino: aprenda com seus erros =================
+     A partida da Ópera não tem Erro nem Capivarada (o Duque só foi
+     impreciso), então o treino é exercitado numa segunda partida: o
+     final da Imortal, que começa por um FEN e tem erro dos dois lados. */
+  console.log("\n== treino: aprenda com seus erros ==");
+  const t1 = (el) => (el || { textContent: "" }).textContent.replace(/\s+/g, " ").trim();
+  const errosDaTela = () => [...window.document.querySelectorAll(".mv")]
+    .filter((e) => /^(Erro|Capivarada)$/.test(t1(e.querySelector(".ic title"))))
+    .map((e) => +e.dataset.ply);
+
+  window.document.querySelector('[data-tab="report"]').click();
+  console.log("partida sem erro grave — na lista:", errosDaTela().length,
+    "| chamada no relatório:", $("btnTrainStart") ? t1($("btnTrainStart")) : "(nenhuma, como esperado)");
+
+  const PGN_TREINO = `[Event "A Imortal (final)"]
+[Site "Londres"]
+[Date "1851.06.21"]
+[White "Adolf Anderssen"]
+[Black "Lionel Kieseritzky"]
+[Result "1-0"]
+[SetUp "1"]
+[FEN "rnb1kbnr/p2p1ppp/5q2/1p3N1P/4PBP1/3P1Q2/PPP5/RN3KR1 w kq - 1 16"]
+
+16. Nc3 Bc5 17. Nd5 Qxb2 18. Bd6 Bxg1 19. e5 Qxa1+ 20. Ke2 Na6 21. Nxg7+ Kd8
+22. Qf6+ Nxf6 23. Be7# 1-0`;
+  $("pgnBox").value = PGN_TREINO;
+  $("btnLoadPgn").click(); await wait(200);
+  $("depth").value = "12";
+  $("btnAnalyze").click();
+  const tT = Date.now();
+  while ($("btnAnalyze").textContent !== ROTULO_ANALISAR && Date.now() - tT < 600000) await wait(500);
+  console.log("partida de treino analisada em", ((Date.now() - tT) / 1000).toFixed(1) + "s",
+    "| lances:", window.document.querySelectorAll(".mv").length);
+
+  /* gabarito lido da própria tela: seta azul = melhor lance da posição,
+     realce amarelo = lance jogado na partida. Nada de espiar o estado. */
+  const viradoT = () => (($("gCoords").childNodes[0] || {}).textContent === "h");
+  const casaXY = (x, y) => {
+    let f = Math.round((x - 50) / 100), r = Math.round((y - 50) / 100);
+    if (viradoT()) { f = 7 - f; r = 7 - r; }
+    return "abcdefgh"[f] + (8 - r);
+  };
+  const clicarCasa = (sq) => {
+    let f = "abcdefgh".indexOf(sq[0]), r = 8 - +sq[1];
+    if (viradoT()) { f = 7 - f; r = 7 - r; }
+    const ev = new window.MouseEvent("click", { clientX: f * 100 + 50, clientY: r * 100 + 50, bubbles: true });
+    Object.defineProperty(ev, "currentTarget", { value: $("board") });
+    $("board").dispatchEvent(ev);
+  };
+  const setaDe = (cor) => {
+    const filhos = [...$("gArrows").childNodes];
+    const ln = filhos.find((e) => e.tagName === "line" && e.getAttribute("stroke") === cor);
+    const pg = filhos.find((e) => e.tagName === "polygon" && e.getAttribute("fill") === cor);
+    if (!ln || !pg) return null;
+    const p = pg.getAttribute("points").split(" ")[0].split(",").map(Number);
+    return { de: casaXY(+ln.getAttribute("x1"), +ln.getAttribute("y1")), para: casaXY(p[0], p[1]) };
+  };
+  const realceDoUltimo = () => {
+    const rs = [...$("gHigh").childNodes].filter((e) => e.tagName === "rect");
+    if (rs.length < 2) return null;
+    return { de: casaXY(+rs[0].getAttribute("x") + 50, +rs[0].getAttribute("y") + 50),
+             para: casaXY(+rs[1].getAttribute("x") + 50, +rs[1].getAttribute("y") + 50) };
+  };
+  const plies = errosDaTela();
+  const gab = plies.map((ply) => {
+    window.document.querySelector('.mv[data-ply="' + ply + '"]').click();
+    const jogado = realceDoUltimo();
+    $("btnPrev").click();
+    return { ply, jogado, melhor: setaDe("#5f90b8") };
+  });
+  console.log("gabarito lido do tabuleiro:",
+    gab.map((g) => g.ply + ":" + (g.melhor ? g.melhor.de + g.melhor.para : "?")).join(" "));
+
+  const contaRel = {};
+  [...window.document.querySelectorAll(".report-grid .r")].forEach((r) => {
+    contaRel[t1(r.children[1])] = (+t1(r.children[0]) || 0) + (+t1(r.children[2]) || 0);
+  });
+  const alvo = (contaRel["Erro"] || 0) + (contaRel["Capivarada"] || 0);
+
+  window.document.querySelector('[data-tab="report"]').click();
+  console.log("chamada no relatório:", t1($("btnTrainStart")));
+  const goTreino = buscasNoMotor;
+  $("btnTrainStart").click(); await wait(80);
+  const naFila = +(t1($("trainCount")).match(/(\d+)\s*$/) || [0, 0])[1];
+  console.log("entrou no treino — painel:", $("panelTrain").style.display === "",
+    "| abas dão lugar a ele:", window.document.querySelector(".panel-main").style.display === "none",
+    "| contador:", t1($("trainCount")));
+  console.log("fila:", naFila, "| Erro+Capivarada no relatório:", alvo,
+    "| selos na lista de lances:", plies.length, "| bate:", naFila === alvo && naFila === plies.length);
+  console.log("posição do 1º erro — girado para quem joga:", viradoT(),
+    "| lance do adversário realçado:", JSON.stringify(realceDoUltimo()),
+    "| sem seta entregando o gabarito:", $("gArrows").childNodes.length === 0);
+  console.log("enunciado:", t1($("trainBody")).slice(0, 150));
+
+  /* ---- 1º item: erra, pede dica, pede a resposta ---- */
+  clicarCasa(gab[0].jogado.de); await wait(20);
+  clicarCasa(gab[0].jogado.para); await wait(80);
+  console.log("\njogou o lance da partida (errado) —", t1(window.document.querySelector(".train-note.bad")));
+  console.log("  não avançou:", t1($("trainCount")), "| tentar de novo:", !!$("btnTrainRetry"),
+    "| dica:", !!$("btnTrainHint"), "| ver a resposta:", !!$("btnTrainShow"));
+  await wait(700);
+  console.log("  o lance errado sai do tabuleiro sozinho:",
+    $("gPieces").childNodes.length, "peças, vez de quem errou de novo");
+  $("btnTrainRetry").click(); await wait(40);
+  console.log("  tentar de novo limpa o aviso:", !window.document.querySelector(".train-note.bad"),
+    "| segue em", t1($("trainCount")));
+  $("btnTrainHint").click(); await wait(30);
+  console.log("  dica:", (t1($("trainBody")).match(/A peça certa[^.]*\./) || ["(nenhuma)"])[0],
+    "| sem dizer a casa:", !/[a-h][1-8]/.test((t1($("trainBody")).match(/A peça certa[^.]*\./) || [""])[0]));
+  $("btnTrainShow").click(); await wait(60);
+  const passos0 = window.document.querySelectorAll(".train-line span.on").length;
+  console.log("  resposta:", t1(window.document.querySelector(".train-note.good")),
+    "| continuação:", t1(window.document.querySelector(".train-line")));
+  await wait(2000);
+  console.log("  a continuação anda sozinha:", passos0, "→",
+    window.document.querySelectorAll(".train-line span.on").length, "meios-lances no tabuleiro",
+    "| peças:", $("gPieces").childNodes.length);
+  $("btnTrainNext").click(); await wait(60);
+  console.log("  próximo:", t1($("trainCount")));
+
+  /* ---- 2º item: acerta ---- */
+  clicarCasa(gab[1].melhor.de); await wait(20);
+  clicarCasa(gab[1].melhor.para); await wait(80);
+  console.log("\nacertou o melhor lance —", t1(window.document.querySelector(".train-note.good")));
+  console.log("  mostra a continuação:", !!window.document.querySelector(".train-line"),
+    "|", t1(window.document.querySelector(".train-line")),
+    "| botão:", t1($("btnTrainNext")));
+
+  /* ---- troca de idioma no meio do exercício ---- */
+  $("btnLangEn").click(); await wait(90);
+  console.log("\nem inglês no meio do treino:", t1($("trainBody")).slice(0, 130));
+  console.log("  cabeçalho:", t1($("panelTrain").querySelector(".train-head b")), "|", t1($("trainCount")),
+    "|", t1($("btnTrainExit")), "| mesmo item, continuação intacta:",
+    !!window.document.querySelector(".train-line"));
+  $("btnLangPt").click(); await wait(60);
+  console.log("  de volta ao português:", t1($("trainCount")), "|", t1($("btnTrainNext")));
+
+  /* ---- resto da fila na base do "ver a resposta" ---- */
+  let voltas = 0;
+  while (!/Fim do treino/.test(t1($("trainCount"))) && voltas++ < 40) {
+    if ($("btnTrainNext")) { $("btnTrainNext").click(); await wait(50); }
+    if ($("btnTrainShow")) { $("btnTrainShow").click(); await wait(50); }
+  }
+  const somas = [...window.document.querySelectorAll(".train-sum .v")].map((e) => +e.textContent);
+  console.log("\nresumo:", t1($("trainCount")), "|", t1($("trainBody")).slice(0, 120));
+  console.log("  de primeira / com dica / passou batido:", somas.join(" / "),
+    "| soma bate com a fila:", somas.reduce((a, b) => a + b, 0) === naFila);
+  $("btnTrainRedo").click(); await wait(60);
+  console.log("  refazer só os que faltaram:", t1($("trainCount")), "| esperado", naFila - 1);
+
+  /* ---- sair: a análise continua onde estava ---- */
+  $("btnTrainExit").click(); await wait(60);
+  console.log("\nsaiu do treino — painel fechado:", $("panelTrain").style.display === "none",
+    "| abas de volta:", window.document.querySelector(".panel-main").style.display === "");
+  console.log("  análise intacta — selos:", window.document.querySelectorAll(".mv .ic").length,
+    "| precisão:", [...window.document.querySelectorAll(".accbox .v")].map((e) => e.textContent).join(" / "),
+    "| chamada do treino de novo:", t1($("btnTrainStart")),
+    "| buscas no motor no treino inteiro:", buscasNoMotor - goTreino);
+
+  /* ---- o que o treino custou no registro salvo ---- */
+  const recT = JSON.parse(window.localStorage.getItem(CHAVE) || "[]")[0] || {};
+  const comPv = JSON.stringify(recT).length;
+  const semPv = JSON.stringify(Object.assign({}, recT, { pvt: undefined })).length;
+  const nPl = (recT.pm || []).length;
+  console.log("\nregistro salvo:", comPv, "B | sem as continuações:", semPv, "B | custo:",
+    comPv - semPv, "B em", Object.keys(recT.pvt || {}).length, "posições de erro |",
+    ((comPv - semPv) / Math.max(1, Object.keys(recT.pvt || {}).length)).toFixed(0), "B cada");
+  const porErro = (comPv - semPv) / Math.max(1, Object.keys(recT.pvt || {}).length);
+  console.log("  partida de 80 lances: registro de ~", Math.round(comPv / Math.max(1, nPl) * 80),
+    "B; com 8 erros o treino soma ~", Math.round(porErro * 8),
+    "B; no pior caso deste trecho (1 erro a cada 3 lances) ~",
+    Math.round((comPv - semPv) / Math.max(1, nPl) * 80), "B");
+
+  /* ---- reabrir a análise salva e treinar (é onde a pv faria falta) ---- */
+  window.document.querySelector('[data-tab="import"]').click();
+  window.document.querySelector("#savedList [data-open]").click(); await wait(200);
+  const goSalva = buscasNoMotor;
+  $("btnTrainStart").click(); await wait(60);
+  $("btnTrainShow").click(); await wait(60);
+  console.log("\nanálise salva reaberta — treino:", t1($("trainCount")),
+    "| continuação guardada:", t1(window.document.querySelector(".train-line")) || "(nenhuma)");
+  console.log("  buscas no motor:", buscasNoMotor - goSalva);
+  $("btnTrainExit").click(); await wait(40);
+
+  /* ---- registro de versão anterior: sem pvt, o treino continua de pé ---- */
+  const listaV = JSON.parse(window.localStorage.getItem(CHAVE) || "[]");
+  delete listaV[0].pvt;
+  window.localStorage.setItem(CHAVE, JSON.stringify(listaV));
+  window.document.querySelector('[data-tab="import"]').click();
+  window.document.querySelector("#savedList [data-open]").click(); await wait(200);
+  $("btnTrainStart").click(); await wait(60);
+  clicarCasa(gab[0].melhor.de); await wait(20);
+  clicarCasa(gab[0].melhor.para); await wait(80);
+  console.log("\nregistro antigo (sem pv) —", t1(window.document.querySelector(".train-note.good")),
+    "| continuação:", window.document.querySelector(".train-line") ? "sim" : "não",
+    "| explica:", t1($("trainBody")).indexOf("versão anterior") >= 0);
+  console.log("  o exercício funciona igual:", !!$("btnTrainNext"),
+    "| buscas no motor:", buscasNoMotor - goSalva);
+  $("btnTrainExit").click(); await wait(40);
+
+  /* ---- perspectiva conhecida: só os erros do usuário entram na fila ---- */
+  const listaU = JSON.parse(window.localStorage.getItem(CHAVE) || "[]");
+  listaU[0].us = "Adolf Anderssen";          // como fica quando a partida veio da busca
+  window.localStorage.setItem(CHAVE, JSON.stringify(listaU));
+  window.document.querySelector('[data-tab="import"]').click();
+  window.document.querySelector("#savedList [data-open]").click(); await wait(200);
+  console.log("\nperspectiva conhecida (Anderssen, das brancas) — chamada:", t1($("btnTrainStart")));
+  $("btnTrainStart").click(); await wait(60);
+  console.log("  fila só com os erros dele:", t1($("trainCount")),
+    "| em segunda pessoa:", t1($("trainBody")).slice(0, 110));
+  $("btnTrainExit").click(); await wait(40);
 
   $("btnCopyFen").click(); $("btnCopyPgn").click(); await wait(50);
   console.log("copiar sem clipboard:", $("toast").textContent);
