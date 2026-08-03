@@ -235,6 +235,14 @@ h3.sub{
   box-shadow:0 0 0 1px rgba(0,0,0,.55),0 26px 50px -34px rgba(0,0,0,.9);
 }
 #board{width:100%;height:100%;aspect-ratio:1;display:block;touch-action:manipulation;cursor:pointer}
+/* peças deslizando: a classe só existe durante a troca de um lance para o vizinho */
+#gPieces use.pc-anim{transition:transform .18s cubic-bezier(.33,.7,.36,1)}
+#gPieces use.pc-out{animation:pcSai .18s linear forwards}   /* capturada: espera a outra chegar */
+#gPieces use.pc-in{animation:pcEntra .18s linear}           /* descapturada: reaparece na casa */
+#gBadge g.tardio{animation:seloPousa .3s ease-out both}
+@keyframes pcSai{0%,55%{opacity:1}100%{opacity:0}}
+@keyframes pcEntra{0%{opacity:0}45%,100%{opacity:1}}
+@keyframes seloPousa{0%,55%{opacity:0}100%{opacity:1}}
 
 .explore-bar{
   display:none;align-items:center;gap:9px;height:34px;padding:0 6px 0 11px;

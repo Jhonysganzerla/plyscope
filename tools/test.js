@@ -391,6 +391,184 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     "| itens na lista:", window.document.querySelectorAll("#savedList .saved").length,
     "| aviso:", $("savedHint").textContent.slice(0, 30) + "…");
 
+  /* ================= peças deslizando =================
+     O jsdom não roda CSS: o que dá para provar aqui é que os elementos <use>
+     são reaproveitados (mesma referência), que a classe de transição entra só
+     no lance vizinho e que, passada a animação, cada peça está na casa que o
+     FEN manda. O deslize em si (curva, 180 ms) fica para o olho. */
+  console.log("\n== peças deslizando ==");
+  const ChessRef = require("chess.js").Chess;
+  const MS = 260;                       // 180 ms de animação + folga
+  const nos    = () => [...$("gPieces").childNodes];
+  const vivas  = () => nos().filter((e) => !e.classList.contains("pc-out"));
+  const anim   = () => nos().filter((e) => e.classList.contains("pc-anim"));
+  const saindo = () => nos().filter((e) => e.classList.contains("pc-out"));
+  const entrando = () => nos().filter((e) => e.classList.contains("pc-in"));
+  const em     = (sq) => vivas().find((e) => e.dataset.sq === sq);
+  const noDom  = (sq) => nos().find((e) => e.dataset.sq === sq);
+  const fenDom = () => {
+    const g = {}; for (const e of vivas()) g[e.dataset.sq] = e.dataset.pc;
+    const linhas = [];
+    for (let r = 8; r >= 1; r--) {
+      let l = "", v = 0;
+      for (const f of "abcdefgh") {
+        const p = g[f + r];
+        if (!p) v++; else { if (v) { l += v; v = 0; } l += p[0] === "w" ? p[1].toUpperCase() : p[1]; }
+      }
+      if (v) l += v; linhas.push(l);
+    }
+    return linhas.join("/");
+  };
+  const fensDe = (pgn) => {
+    const c = new ChessRef(); c.loadPgn(pgn, { strict: false });
+    const h = c.history({ verbose: true }), hdr = c.getHeaders();
+    const r = new ChessRef(); if (hdr.FEN) r.load(hdr.FEN);
+    const out = [r.fen().split(" ")[0]];
+    for (const m of h) { r.move(m.san); out.push(r.fen().split(" ")[0]); }
+    return out;
+  };
+  const transf = (sq, flip) => {
+    const f = "abcdefgh".indexOf(sq[0]), r = 8 - +sq[1];
+    return "translate(" + (flip ? 7 - f : f) * 100 + "," + (flip ? 7 - r : r) * 100 + ") scale(2.5)";
+  };
+  const abrir = async (pgn) => { $("pgnBox").value = pgn; $("btnLoadPgn").click(); await wait(200); };
+  const andar = async (btn, ms) => { $(btn).click(); await wait(ms === undefined ? MS : ms); };
+  const ok = [];
+  const conf = (rot, cond, extra) => { ok.push(!!cond); console.log(" ", (cond ? "ok  " : "FALHOU ") + rot, extra === undefined ? "" : extra); };
+
+  /* --- 1) um lance para frente: desliza quem moveu, ninguém é recriado --- */
+  const PGN_A = '[Event "t"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. O-O Nf6 5. Nxe5 Nxe5 1/2-1/2';
+  const FA = fensDe(PGN_A);
+  await abrir(PGN_A);
+  const antes = nos().slice(), peaoE2 = em("e2");
+  await andar("btnNext", 5);
+  conf("a peça que moveu recebe a transição",
+    peaoE2.classList.contains("pc-anim") && anim().length === 1 && em("e4") === peaoE2,
+    "| transform: " + peaoE2.getAttribute("transform"));
+  conf("as outras não são recriadas nem animadas",
+    nos().every((e) => antes.indexOf(e) >= 0) && nos().length === antes.length
+    && nos().filter((e) => e !== peaoE2).every((e) => !e.getAttribute("class")),
+    "| elementos: " + antes.length + " → " + nos().length);
+  await wait(MS);
+  conf("passada a animação a classe sai e a posição bate com o FEN",
+    anim().length === 0 && fenDom() === FA[1], "| " + fenDom());
+
+  /* --- 2) pulo longo: ninguém anima --- */
+  await andar("btnEnd");
+  conf("pulo até o fim é instantâneo", anim().length === 0 && saindo().length === 0 && fenDom() === FA[10], "| " + fenDom());
+  await andar("btnStart");
+  conf("pulo até o início é instantâneo", anim().length === 0 && fenDom() === FA[0]);
+  const alvoPly6 = window.document.querySelector('.mv[data-ply="6"]');
+  if (alvoPly6) { alvoPly6.click(); await wait(5); }
+  conf("clique num lance distante é instantâneo", anim().length === 0, "| ply da lista: 6");
+  await wait(MS);
+
+  /* --- 3) roque: as duas peças deslizam --- */
+  const rei = em("e1"), torre = em("h1");
+  await andar("btnNext", 5);
+  conf("roque anima rei e torre juntos",
+    anim().length === 2 && rei.classList.contains("pc-anim") && torre.classList.contains("pc-anim")
+    && rei.dataset.sq === "g1" && torre.dataset.sq === "f1");
+  await wait(MS);
+  conf("roque termina com os mesmos elementos nas casas certas",
+    em("g1") === rei && em("f1") === torre && fenDom() === FA[7]);
+  await andar("btnPrev", 5);
+  conf("desfazer o roque anima de volta",
+    anim().length === 2 && rei.dataset.sq === "e1" && torre.dataset.sq === "h1");
+  await wait(MS);
+  conf("posição depois de desfazer o roque", fenDom() === FA[6]);
+
+  /* --- 4) captura: a capturada só some quando a outra chega --- */
+  await andar("btnNext"); await andar("btnNext");        // 4.O-O e 4...Nf6; o próximo é 5.Nxe5
+  const cavalo = em("f3"), peaoE5 = em("e5");
+  await andar("btnNext", 5);
+  conf("na captura o cavalo desliza e o peão continua no tabuleiro",
+    cavalo.dataset.sq === "e5" && cavalo.classList.contains("pc-anim")
+    && peaoE5.parentNode !== null && peaoE5.classList.contains("pc-out")
+    && peaoE5.getAttribute("transform") === transf("e5", false));
+  await wait(MS);
+  conf("terminada a animação a capturada saiu do DOM",
+    peaoE5.parentNode === null && fenDom() === FA[9] && nos().length === vivas().length);
+
+  /* --- 5) voltar um lance: descaptura --- */
+  await andar("btnPrev", 5);
+  conf("voltar traz a capturada de volta na casa dela",
+    entrando().length === 1 && noDom("e5") !== cavalo && noDom("e5").dataset.pc === "bp"
+    && cavalo.dataset.sq === "f3" && cavalo.classList.contains("pc-anim"));
+  await wait(MS);
+  conf("posição depois de descapturar", fenDom() === FA[8] && entrando().length === 0);
+
+  /* --- 6) en passant e promoção --- */
+  const PGN_B = '[Event "t"]\n[SetUp "1"]\n[FEN "4k3/1P6/8/3pP3/8/8/8/4K3 w - d6 0 1"]\n\n1. exd6 Kd7 2. b8=Q Kc6 1-0';
+  const FB = fensDe(PGN_B);
+  await abrir(PGN_B);
+  const peaoD5 = em("d5"), peaoE5b = em("e5");
+  await andar("btnNext", 5);
+  conf("en passant: some o peão de d5, não o da casa de destino",
+    peaoE5b.dataset.sq === "d6" && peaoD5.classList.contains("pc-out")
+    && peaoD5.getAttribute("transform") === transf("d5", false) && noDom("d6") === peaoE5b);
+  await wait(MS);
+  conf("posição depois do en passant", fenDom() === FB[1] && peaoD5.parentNode === null);
+
+  await andar("btnNext");
+  const peaoB7 = em("b7");
+  await andar("btnNext", 5);
+  conf("promoção: o peão desliza ainda como peão",
+    peaoB7.getAttribute("href") === "#wp" && peaoB7.dataset.sq === "b8"
+    && peaoB7.classList.contains("pc-anim") && vivas().filter((e) => e.dataset.pc === "wq").length === 1);
+  await wait(MS);
+  conf("ao chegar vira dama (mesmo elemento)",
+    em("b8") === peaoB7 && peaoB7.getAttribute("href") === "#wq" && fenDom() === FB[3]);
+  await andar("btnPrev", 5);
+  conf("voltar despromove antes de deslizar",
+    peaoB7.getAttribute("href") === "#wp" && peaoB7.dataset.sq === "b7" && peaoB7.classList.contains("pc-anim"));
+  await wait(MS);
+  conf("posição depois de desfazer a promoção", fenDom() === FB[2]);
+
+  /* --- 7) girar o tabuleiro não é lance: sem animação --- */
+  $("btnFlip").click(); await wait(5);
+  conf("girar não anima, só recalcula as coordenadas",
+    anim().length === 0 && em("b7").getAttribute("transform") === transf("b7", true) && fenDom() === FB[2]);
+  $("btnFlip").click(); await wait(5);
+  conf("desgirar idem", anim().length === 0 && em("b7").getAttribute("transform") === transf("b7", false));
+
+  /* --- 8) atropelo: seta pressionada não deixa peça no meio do caminho --- */
+  await abrir(PGN_A);
+  $("btnNext").click(); $("btnNext").click(); $("btnNext").click(); $("btnNext").click();
+  await wait(5);
+  const meioDoCaminho = fenDom();
+  await wait(MS);
+  conf("quatro setas seguidas terminam na posição certa",
+    fenDom() === FA[4] && anim().length === 0 && saindo().length === 0,
+    "| já correta durante a animação: " + (meioDoCaminho === FA[4]));
+
+  /* --- 9) reprodução automática: animação mais curta que o intervalo --- */
+  await andar("btnStart");
+  $("speed").value = "600"; $("btnPlay").click();
+  await wait(300);
+  const noVao = anim().length;
+  await wait(320);
+  const noLance = anim().length;
+  $("btnPlay").click(); await wait(MS);
+  conf("a 0,6 s a animação termina antes do próximo lance",
+    noVao === 0 && noLance > 0, "| 300 ms depois do lance: " + noVao + " animando · 620 ms: " + noLance);
+
+  /* --- 10) prefers-reduced-motion: comportamento de hoje --- */
+  const mmReal = window.matchMedia;
+  window.matchMedia = (q) => ({ matches: /prefers-reduced-motion/.test(q), media: q,
+    addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, onchange: null });
+  await andar("btnStart");
+  const antesRM = nos().slice();
+  await andar("btnNext", 5);
+  conf("com prefers-reduced-motion nada anima",
+    anim().length === 0 && saindo().length === 0 && entrando().length === 0 && fenDom() === FA[1]);
+  conf("mas os elementos continuam sendo reaproveitados",
+    nos().every((e) => antesRM.indexOf(e) >= 0));
+  if (mmReal) window.matchMedia = mmReal; else delete window.matchMedia;
+  await wait(MS);
+
+  console.log("  animação das peças:", ok.every(Boolean) ? "OK" : "FALHOU (" + ok.filter((x) => !x).length + " de " + ok.length + ")");
+
   $("btnCopyFen").click(); $("btnCopyPgn").click(); await wait(50);
   console.log("copiar sem clipboard:", $("toast").textContent);
   ["import","report","moves","engine"].forEach((t) => window.document.querySelector('[data-tab="'+t+'"]').click());

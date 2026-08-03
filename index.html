@@ -235,6 +235,14 @@ h3.sub{
   box-shadow:0 0 0 1px rgba(0,0,0,.55),0 26px 50px -34px rgba(0,0,0,.9);
 }
 #board{width:100%;height:100%;aspect-ratio:1;display:block;touch-action:manipulation;cursor:pointer}
+/* peças deslizando: a classe só existe durante a troca de um lance para o vizinho */
+#gPieces use.pc-anim{transition:transform .18s cubic-bezier(.33,.7,.36,1)}
+#gPieces use.pc-out{animation:pcSai .18s linear forwards}   /* capturada: espera a outra chegar */
+#gPieces use.pc-in{animation:pcEntra .18s linear}           /* descapturada: reaparece na casa */
+#gBadge g.tardio{animation:seloPousa .3s ease-out both}
+@keyframes pcSai{0%,55%{opacity:1}100%{opacity:0}}
+@keyframes pcEntra{0%{opacity:0}45%,100%{opacity:1}}
+@keyframes seloPousa{0%,55%{opacity:0}100%{opacity:1}}
 
 .explore-bar{
   display:none;align-items:center;gap:9px;height:34px;padding:0 6px 0 11px;
@@ -5690,9 +5698,155 @@ function currentChess() {
 }
 function currentFen() { return S.explore ? S.explore.chess.fen() : (S.fens[S.ply] || new Chess().fen()); }
 
+/* ---------- peças: elementos reaproveitados + deslize de um lance ----------
+   O grupo #gPieces não é mais apagado a cada desenho: guardamos um mapa
+   casa→<use> e só mexemos em quem mudou. Quando a navegação anda exatamente
+   um lance (setas, play automático, lance no modo exploração), o transform
+   novo entra com transição CSS e a peça desliza; qualquer outro redesenho
+   (pulo longo, outra partida, girar o tabuleiro) continua instantâneo. */
+const ANIM_MS = 180;                 // menor que o intervalo mais rápido do play (600 ms)
+let pieceMap = new Map();            // casa → <use> em cena
+let pieceFlip = null;                // orientação usada no último desenho das peças
+let animTimers = [];                 // pendências da animação em curso
+let animNext = null;                 // lance a animar na próxima renderização
+let animSeloTardio = false;          // selo espera a peça chegar
+
+function semAnimacao() {
+  try { return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+  catch (e) { return false; }
+}
+function agendarFim(fn) {
+  const t = { fim: fn };
+  t.id = setTimeout(() => { t.fim = null; fn(); }, ANIM_MS);
+  animTimers.push(t);
+}
+/** Encerra a animação em curso já no estado final: nada fica preso no meio. */
+function limparAnimPecas() {
+  const pend = animTimers; animTimers = [];
+  for (const t of pend) { clearTimeout(t.id); if (t.fim) t.fim(); }
+  const gP = $("gPieces");
+  if (gP) for (const el of [...gP.childNodes]) if (el.classList) el.classList.remove("pc-anim", "pc-out", "pc-in");
+}
+function usePeca(gP, code) {
+  const u = svg("use", { href: "#" + code }, gP);
+  u.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", "#" + code);
+  u.dataset.pc = code;
+  return u;
+}
+function trocaPeca(el, code) {
+  el.setAttribute("href", "#" + code);
+  el.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", "#" + code);
+}
+/** Lance `i` da partida em forma verbosa (flags, captura, promoção) para animar. */
+function planoDoLance(i, dir) {
+  const mv = S.moves[i];
+  if (!mv || !mv.uci || !S.fens[i]) return null;
+  try {
+    const c = new Chess(S.fens[i]);
+    const m = c.move({ from: mv.uci.slice(0, 2), to: mv.uci.slice(2, 4), promotion: mv.uci[4] || "q" });
+    return m ? { m, dir } : null;
+  } catch (e) { return null; }
+}
+/** Traduz o lance verboso em deslocamentos e sumiços, no sentido pedido. */
+function montarPlano(spec) {
+  const m = spec && spec.m;
+  if (!m || !m.from || !m.to || !m.color || !m.piece) return null;
+  const cor = m.color, fl = m.flags || "", lin = m.to[1];
+  const roque = fl.indexOf("k") >= 0 ? ["h" + lin, "f" + lin]
+              : fl.indexOf("q") >= 0 ? ["a" + lin, "d" + lin] : null;
+  // en passant: o peão capturado está na coluna do destino, na linha de origem
+  const capSq = m.captured ? (fl.indexOf("e") >= 0 ? m.to[0] + m.from[1] : m.to) : null;
+  const slides = [], some = [];
+  if (spec.dir > 0) {
+    if (capSq) some.push(capSq);
+    slides.push({ from: m.from, to: m.to, code: cor + m.piece,
+                  vira: m.promotion ? cor + m.promotion : null });
+    if (roque) slides.push({ from: roque[0], to: roque[1], code: cor + "r" });
+  } else {
+    slides.push({ from: m.to, to: m.from, code: m.promotion ? cor + m.promotion : cor + m.piece,
+                  antes: m.promotion ? cor + m.piece : null });
+    if (roque) slides.push({ from: roque[1], to: roque[0], code: cor + "r" });
+  }
+  return { slides, some };
+}
+
+function renderPieces(gP, ch) {
+  const spec = animNext; animNext = null;
+  animSeloTardio = false;
+  for (const [sq, el] of pieceMap) if (el.parentNode !== gP) pieceMap.delete(sq);
+
+  const board = ch.board();
+  const alvo = new Map();
+  for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
+    const p = board[r][f];
+    if (p) alvo.set(FILES[f] + (8 - r), p.color + p.type);
+  }
+
+  // redesenho sem mudança de posição (seleção, motor…): não atrapalha o deslize em curso
+  let igual = pieceFlip === S.flipped && alvo.size === pieceMap.size;
+  if (igual) for (const [sq, code] of alvo) {
+    const el = pieceMap.get(sq);
+    if (!el || el.dataset.pc !== code) { igual = false; break; }
+  }
+  if (igual && !spec) return;
+
+  limparAnimPecas();
+
+  const plano = spec && !semAnimacao() && pieceMap.size ? montarPlano(spec) : null;
+  const anima = !!plano
+    && plano.slides.every((s) => { const el = pieceMap.get(s.from); return el && el.dataset.pc === s.code; })
+    && plano.some.every((sq) => pieceMap.has(sq));
+
+  if (anima) {
+    animSeloTardio = true;
+    for (const sq of plano.some) {              // capturada: só some quando a outra chega
+      const el = pieceMap.get(sq); pieceMap.delete(sq);
+      if (el.parentNode) el.parentNode.insertBefore(el, el.parentNode.firstChild);
+      el.classList.add("pc-out");
+      agendarFim(() => { if (el.parentNode) el.parentNode.removeChild(el); });
+    }
+    const movidos = plano.slides.map((s) => {
+      const el = pieceMap.get(s.from); pieceMap.delete(s.from); return [s, el];
+    });
+    for (const [s, el] of movidos) {
+      const ocupa = pieceMap.get(s.to);
+      if (ocupa && ocupa !== el) { pieceMap.delete(s.to); if (ocupa.parentNode) ocupa.parentNode.removeChild(ocupa); }
+      if (s.antes) { trocaPeca(el, s.antes); el.dataset.pc = s.antes; }   // desfazendo promoção
+      el.classList.add("pc-anim");
+      if (s.vira) el.dataset.pc = s.vira;                    // vira dama só ao chegar
+      agendarFim(() => { el.classList.remove("pc-anim"); if (s.vira) trocaPeca(el, s.vira); });
+      pieceMap.set(s.to, el);
+    }
+  }
+
+  // reconcilia com a posição alvo reaproveitando o que já está em cena
+  const sobra = [];
+  for (const [sq, el] of pieceMap) if (alvo.get(sq) !== el.dataset.pc) { sobra.push(el); pieceMap.delete(sq); }
+  for (const [sq, code] of alvo) {
+    if (pieceMap.has(sq)) continue;
+    const k = sobra.findIndex((e) => e.dataset.pc === code);
+    let el;
+    if (k >= 0) el = sobra.splice(k, 1)[0];
+    else {
+      el = usePeca(gP, code);
+      if (anima) { el.classList.add("pc-in"); agendarFim(() => el.classList.remove("pc-in")); }
+    }
+    pieceMap.set(sq, el);
+  }
+  for (const el of sobra) if (el.parentNode) el.parentNode.removeChild(el);
+
+  for (const [sq, el] of pieceMap) {
+    const [x, y] = sqXY(sq);
+    const t = `translate(${x},${y}) scale(2.5)`;
+    if (el.getAttribute("transform") !== t) el.setAttribute("transform", t);
+    el.dataset.sq = sq;
+  }
+  pieceFlip = S.flipped;
+}
+
 function renderBoard() {
   const gS = $("gSquares"), gH = $("gHigh"), gP = $("gPieces"), gA = $("gArrows"), gB = $("gBadge"), gC = $("gCoords");
-  [gS, gH, gP, gA, gB, gC].forEach((g) => (g.innerHTML = ""));
+  [gS, gH, gA, gB, gC].forEach((g) => (g.innerHTML = ""));   // gP é reconciliado, não apagado
 
   for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
     svg("rect", { x: f*100, y: r*100, width: 100, height: 100,
@@ -5735,15 +5889,7 @@ function renderBoard() {
   }
 
   // peças
-  const board = ch.board();
-  for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
-    const p = board[r][f];
-    if (!p) continue;
-    const sq = FILES[f] + (8 - r);
-    const [x, y] = sqXY(sq);
-    const u = svg("use", { href: "#" + p.color + p.type, transform: `translate(${x},${y}) scale(2.5)` }, gP);
-    u.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", "#" + p.color + p.type);
-  }
+  renderPieces(gP, ch);
 
   // setas + selo de classificação
   if (!S.explore) drawAnnotations(gA, gB);
@@ -5792,7 +5938,7 @@ function drawAnnotations(gA, gB) {
     const mv = S.moves[i];
     const [x, y] = sqXY(mv.to);
     const c = CLS[pm.cls];
-    const g = svg("g", {}, gB);
+    const g = svg("g", animSeloTardio ? { class: "tardio" } : {}, gB);   // pousa junto com a peça
     const cx = Math.max(22, Math.min(778, x + 82)), cy = Math.max(22, Math.min(778, y + 18));
     svg("circle", { cx, cy, r: 20, fill: c.cor, stroke: "#00000055", "stroke-width": 2 }, g);
     const t = svg("text", { x: cx, y: cy + 8, "text-anchor": "middle", "font-size": 22,
@@ -5829,6 +5975,7 @@ function makeExploreMove(mv) {
     $("exploreBar").classList.add("on");
   }
   const feito = S.explore.chess.move({ from: mv.from, to: mv.to, promotion: mv.promotion || "q" });
+  if (feito) animNext = { m: feito, dir: 1 };
   S.exploreEval = null;
   somDoLance(feito && feito.san);
   renderBoard(); renderEvalBar();
@@ -6156,12 +6303,16 @@ async function analyzeCurrent(quick) {
 function goTo(ply, opts) {
   const alvo = Math.max(0, Math.min(S.moves.length, ply));
   const anterior = S.ply;
+  const eraExplore = !!S.explore;
   if (!(opts && opts.auto)) pararPlay();
   if (S.explore) { S.explore = null; $("exploreBar").classList.remove("on"); }
   if (!S.analyzing) Engine.stop();           // não deixa busca antiga rodando
   S.exploreEval = null;
   S.ply = alvo;
   S.sel = null;
+  // deslize só entre lances vizinhos; pulo longo (ou sair do modo exploração) é instantâneo
+  if (!eraExplore && Math.abs(alvo - anterior) === 1)
+    animNext = planoDoLance(Math.min(alvo, anterior), alvo > anterior ? 1 : -1);
   renderBoard(); renderEvalBar(); highlightMove(); renderEngineTab(); drawGraph();
   // som só quando anda de lance em lance (pulos longos ficariam ruidosos)
   if (Math.abs(alvo - anterior) === 1 && alvo > 0) {
