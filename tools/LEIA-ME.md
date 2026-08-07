@@ -24,18 +24,32 @@ node test-csp.js
 
 Recalcula o SHA-256 de cada `<script>` inline do `index.html` e confere contra os hashes que o `vercel.json` e o `_headers` declaram; extrai do código as origens de `fetch`, o caminho do Worker do motor e os usos de `data:`, e confere cada um contra as diretivas; e sobe o `servidor.js` e o `servidor.py` de verdade para conferir por HTTP que mandam a mesma política. Do `servidor.ps1` faz revisão estática (PowerShell não roda fora do Windows). Leva uns 3 s. A explicação diretiva por diretiva está em `docs/PUBLICAR.md`.
 
-## `test.js` — teste funcional
+## As suítes
 
-Sobe o `index.html` num DOM falso (jsdom), troca o Web Worker por um processo Node rodando o mesmo Stockfish, e exercita o app inteiro: carrega um PGN, analisa a partida, confere o relatório e os selos, navega, explora variações, clica nas linhas do motor, liga a reprodução automática e passeia pelas abas.
+| arquivo | o que cobre | precisa do motor? |
+|---|---|---|
+| `unit.js` | as funções puras de `src/classify.js` — SEE, sacrifício, classificação, precisão | não (~100 ms) |
+| `test.js` | ponta a ponta: análise, relatório, navegação, exploração, idioma, salvas, exportação | sim (~25 s) |
+| `test-treino.js` | ponta a ponta do modo "aprenda com seus erros" | sim (~24 s) |
+| `test-pool.js` | o pool de motores, com motor de mentira e avaliação determinística | não |
+| `test-csp.js` | os hashes do CSP conferem com o `index.html` recém-construído | não |
 
-Também confere a troca de idioma com a análise na tela: analisa em português, muda para inglês e verifica que o topo, as abas, o relatório, os selos da lista de lances e o painel de análises salvas mudaram de língua — enquanto a análise continua a mesma (mesmos selos, mesmo SAN, mesma precisão, só reescrita no formato da outra língua) — e depois volta para o português conferindo que a tela fica idêntica à de antes.
+`harness.js` é o preparo comum das duas suítes de ponta a ponta: carrega o
+`index.html` num DOM falso, troca o Web Worker por um processo Node rodando o
+mesmo Stockfish de `engine/`, e oferece `conf()` — a asserção que conta para o
+resumo e faz o processo sair com código 1 se qualquer conferência falhar.
+
+O treino ficou em arquivo separado porque analisa uma segunda partida inteira:
+juntas, as duas passavam de 45 s, que é o limite de tempo de alguns ambientes.
 
 ```bash
-node test.js                 # usa um PGN embutido
-node test.js partida.pgn     # usa o seu
+cd tools && npm install
+node --test unit.js
+node test.js ../docs/exemplos/opera-1858.pgn
+node test-treino.js
+node test-pool.js && node test-csp.js
 ```
 
-Leva ~35 s (roda o motor de verdade). Os avisos `JSDOM ERR ... getContext()` são esperados: jsdom não implementa canvas, então só o gráfico não é desenhado.
 
 ## `test-pool.js` — testes do pool de motores
 

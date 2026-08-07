@@ -22,7 +22,7 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
         { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" },
-        { "key": "Content-Security-Policy", "value": "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; frame-src 'none'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-dFp4Yao3SEDVsclF6Z9APxPj+Y+dWp6bst/ggt4yQcM=' 'sha256-sf0C8w+4zgYMyqLqwgI0X/f/NBeJk4OyM0hAn1rp8Dw=' 'sha256-fZ7VQDRLGyLvQV0vqpqf4jyRZhlRMu9jtHxfpIuCBqI=' 'sha256-8ugyrJv2Vt0581VSNwmH5qVFnAEiGBQ2QX3tesPRRY4=' 'sha256-ylCqSWU19HNJl36N/xiTt+nu0RcksB1i1UE0AvxXKOQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.chess.com https://lichess.org; worker-src 'self'; child-src 'self'" }
+        { "key": "Content-Security-Policy", "value": "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; frame-src 'none'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-dFp4Yao3SEDVsclF6Z9APxPj+Y+dWp6bst/ggt4yQcM=' 'sha256-sf0C8w+4zgYMyqLqwgI0X/f/NBeJk4OyM0hAn1rp8Dw=' 'sha256-fZ7VQDRLGyLvQV0vqpqf4jyRZhlRMu9jtHxfpIuCBqI=' 'sha256-gwehoODX4jpucFsNQZdMxbFFaR+NIZAMydeFGNA8+Bs=' 'sha256-vP6q2jDkNrmLyXvcThmUS9uwxEOt3pWIbvno5mPDSfU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.chess.com https://lichess.org; worker-src 'self'; child-src 'self'" }
       ]
     }
   ]

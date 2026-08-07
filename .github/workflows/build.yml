@@ -63,6 +63,17 @@ jobs:
         working-directory: tools
         run: node test-csp.js
 
-      - name: Teste de ponta a ponta (jsdom + Stockfish real)
+      - name: Pool de motores (motor de mentira, determinístico)
+        working-directory: tools
+        run: node test-pool.js
+
+      # As duas suítes de ponta a ponta rodam o Stockfish de verdade, que está
+      # versionado em engine/. Ficaram separadas porque cada uma analisa uma
+      # partida inteira e juntas passavam de 45 s.
+      - name: Ponta a ponta — análise, relatório, navegação, idioma
         working-directory: tools
         run: node test.js ../docs/exemplos/opera-1858.pgn
+
+      - name: Ponta a ponta — treino "aprenda com seus erros"
+        working-directory: tools
+        run: node test-treino.js
