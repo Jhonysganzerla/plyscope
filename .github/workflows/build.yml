@@ -77,3 +77,10 @@ jobs:
       - name: Ponta a ponta — treino "aprenda com seus erros"
         working-directory: tools
         run: node test-treino.js
+
+      # Teclado e leitor de tela: varredura estática do index.html gerado mais
+      # o tabuleiro operado por KeyboardEvent de verdade (cursor, seleção,
+      # lance no modo exploração e um exercício do treino resolvido sem mouse).
+      - name: Acessibilidade — teclado, semântica e região viva
+        working-directory: tools
+        run: node test-a11y.js

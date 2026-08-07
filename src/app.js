@@ -48,6 +48,7 @@ const S = {
   cancel: false,
   explore: null,    // {chess, sanLine[]}
   sel: null,        // casa selecionada
+  cursor: "e1",     // casa sob o cursor de teclado (ver "camada acessível")
   deep: false,
   abertura: null,   // {eco, nome, ply} — abertura identificada na base ECO
 };
@@ -980,6 +981,53 @@ function finishAnalysis() {
 function loteNoInterativo() { return S.analyzing && !Pool.motores.length; }
 
 /* ============================================================
+   Região viva — o que o leitor de tela ouve sem ir procurar
+   ------------------------------------------------------------
+   UM nó (#live, role=status, aria-live=polite, aria-atomic) e uma regra:
+   uma frase por ação do usuário.
+
+   O QUE PASSA POR AQUI: o lance ao navegar a partida ("Lance 12, Brancas:
+   Nf3, Melhor"), a seleção e o cancelamento no tabuleiro, o lance jogado no
+   modo exploração e o veredito de cada exercício do treino.
+
+   O QUE NÃO PASSA, DE PROPÓSITO: a casa sob o cursor. Ela é o rótulo da
+   célula que acabou de receber foco, e o leitor de tela já lê o rótulo do
+   que ganha foco — repetir aqui seria anunciar duas vezes a mesma coisa.
+   Pelo mesmo motivo a frase idêntica à anterior é engolida: reatribuir o
+   mesmo texto troca o nó e faria o leitor reler o que ele acabou de ler.
+   ============================================================ */
+let ultimoAviso = "";
+function anunciar(txt) {
+  const el = $("live");
+  if (!el) return;
+  const s = String(txt == null ? "" : txt).replace(/\s+/g, " ").trim();
+  if (s === ultimoAviso) return;
+  ultimoAviso = s;
+  el.textContent = s;
+}
+
+/** Frase de um lance da partida: serve à região viva e ao rótulo do botão
+    do lance na lista — os dois dizem exatamente a mesma coisa. */
+function anuncioDoLance(ply) {
+  if (!ply) return tr("aviso.inicio");
+  const m = S.moves[ply - 1];
+  if (!m) return "";
+  const pm = S.perMove[ply - 1];
+  const d = { n: m.num, cor: tr(m.color === "w" ? "lado.brancas" : "lado.pretas"), san: m.san };
+  if (pm && pm.cls) { d.cls = clsNome(pm.cls); return tr("lance.aria.cls", d); }
+  return tr("lance.aria", d);
+}
+
+/** Depois de um innerHTML, o foco que estava dentro cairia no <body> e o
+    teclado perderia o lugar. Devolve ao mesmo botão (pelo id) ou ao primeiro. */
+function devolverFoco(caixa, id) {
+  if (!caixa) return;
+  const mesmo = id ? $(id) : null;
+  const alvo = mesmo && caixa.contains(mesmo) ? mesmo : caixa.querySelector("button");
+  if (alvo && alvo.focus) alvo.focus();
+}
+
+/* ============================================================
    Tabuleiro
    ============================================================ */
 const FILES = "abcdefgh";
@@ -1205,6 +1253,9 @@ function renderBoard() {
 
   // setas + selo de classificação
   if (!S.explore) drawAnnotations(gA, gB);
+
+  // e o mesmo tabuleiro, dito com palavras (ver "camada acessível")
+  atualizarGrade(ch);
 }
 
 function lastMove() {
@@ -1263,13 +1314,152 @@ function drawAnnotations(gA, gB) {
   }
 }
 
-/* ---------- interação (explorar variações) ---------- */
-$("board").addEventListener("click", (ev) => {
-  const rect = ev.currentTarget.getBoundingClientRect();
-  const x = ((ev.clientX - rect.left) / rect.width) * 800;
-  const y = ((ev.clientY - rect.top) / rect.height) * 800;
-  const sq = xyToSq(x, y);
+/* ============================================================
+   Camada acessível do tabuleiro — cursor de casa por teclado
+   ------------------------------------------------------------
+   POR QUE UMA GRADE HTML POR CIMA DO SVG, e não papéis ARIA nos <rect>:
+   o desenho do tabuleiro é um SVG que muda a cada lance, e ARIA dentro de
+   SVG é a parte mais irregular do suporte de leitor de tela (foco em
+   elementos SVG e leitura de <title> variam de navegador para navegador).
+   O que é uniforme desde sempre é HTML com papel, rótulo e tabindex. Então:
+   o SVG fica aria-hidden e desenha; 64 <div> transparentes por cima têm o
+   papel, o rótulo e o foco. Nenhum pixel muda de lugar — a grade é 8×8 de
+   frações iguais sobre um quadro quadrado, as células caem sobre as casas.
+
+   POR QUE role="grid" E NÃO role="application":
+   "application" desliga o modo de leitura do leitor de tela para tudo que
+   está dentro e passa a responsabilidade de CADA tecla para o app — inclusive
+   as que o usuário já tem no dedo para ler a tela. "grid" é o que o tabuleiro
+   é: uma matriz navegável de células. O leitor já sabe anunciar linha, coluna
+   e conteúdo, já entende tabindex rotativo (uma parada de tabulação para a
+   grade inteira, setas por dentro), e o usuário não precisa aprender nada
+   novo. É o padrão "layout grid" do APG, o mesmo de uma agenda mensal.
+
+   O CURSOR: S.cursor guarda uma CASA (e4), não uma posição na tela. Girar o
+   tabuleiro move o cursor junto com a casa, que é o que o olho espera. Quem
+   converte casa ↔ posição visual é o mesmo par sqXY/xyToSq do desenho, então
+   girado ou não, as setas andam para onde apontam.
+   ============================================================ */
+const gradeCels = [];                     // 64 células, em ordem VISUAL
+
+/** Casa na posição visual i (0 = canto superior esquerdo do que está na tela). */
+function casaDoIndice(i) {
+  const c = i % 8, r = (i - c) / 8;
+  return xyToSq(c * 100 + 50, r * 100 + 50);
+}
+/** Posição visual da casa sq. */
+function indiceDaCasa(sq) {
+  const [x, y] = sqXY(sq);
+  return (y / 100) * 8 + x / 100;
+}
+function destinosDe(ch, sq) {
+  try { return ch.moves({ square: sq, verbose: true }).map((m) => m.to); }
+  catch (e) { return []; }
+}
+/** "e4, peão branco" — coordenada primeiro, que é como se fala uma casa.
+    A cor vem colada no nome da peça (pc.wp = "peão branco") porque em
+    português o adjetivo concorda: torre BRANCA, peão BRANCO. */
+function rotuloDaCasa(sq, ch, destinos) {
+  const p = ch.get(sq);
+  const base = p ? sq + ", " + tr("pc." + p.color + p.type) : tr("casa.vazia", { casa: sq });
+  if (S.sel === sq) return tr("casa.selecionada", { base });
+  if (destinos && destinos.indexOf(sq) >= 0) return tr("casa.destino", { base });
+  return base;
+}
+
+function montarGrade() {
+  const g = $("boardGrid");
+  if (!g || gradeCels.length) return;
+  for (let r = 0; r < 8; r++) {
+    const linha = document.createElement("div");
+    linha.className = "brow";
+    linha.setAttribute("role", "row");
+    for (let c = 0; c < 8; c++) {
+      const cel = document.createElement("div");
+      cel.className = "sq";
+      cel.setAttribute("role", "gridcell");
+      cel.tabIndex = -1;
+      cel.dataset.i = r * 8 + c;
+      linha.appendChild(cel);
+      gradeCels.push(cel);
+    }
+    g.appendChild(linha);
+  }
+  g.addEventListener("keydown", teclaNoTabuleiro);
+  /* O mouse não muda de dono: a célula só repassa a casa. O preventDefault do
+     mousedown impede que o clique roube o foco — quem estava navegando os
+     lances com as setas continua navegando os lances depois de clicar. O
+     leitor de tela aciona por click sintético, sem mousedown, e chega aqui. */
+  g.addEventListener("mousedown", (e) => e.preventDefault());
+  g.addEventListener("click", (e) => {
+    const cel = e.target.closest && e.target.closest(".sq");
+    if (cel) clicarCasa(casaDoIndice(+cel.dataset.i));
+  });
+}
+
+/** Rótulo e tabindex das 64 células, a cada desenho do tabuleiro. */
+function atualizarGrade(ch) {
+  if (!gradeCels.length) return;
+  if (!/^[a-h][1-8]$/.test(S.cursor)) S.cursor = "e1";
+  const destinos = S.sel ? destinosDe(ch, S.sel) : null;
+  const iCursor = indiceDaCasa(S.cursor);
+  const ativo = document.activeElement;
+  const tinhaFoco = !!(ativo && ativo.classList && ativo.classList.contains("sq"));
+  for (let i = 0; i < 64; i++) {
+    const cel = gradeCels[i], sq = casaDoIndice(i);
+    cel.dataset.sq = sq;
+    const rot = rotuloDaCasa(sq, ch, destinos);
+    if (cel.getAttribute("aria-label") !== rot) cel.setAttribute("aria-label", rot);
+    const t = i === iCursor ? 0 : -1;
+    if (cel.tabIndex !== t) cel.tabIndex = t;
+  }
+  // girar o tabuleiro com o cursor em cena: o foco segue a casa, não o pixel
+  if (tinhaFoco && gradeCels[iCursor] !== ativo) gradeCels[iCursor].focus();
+}
+
+function focarCursor() {
+  const cel = gradeCels[indiceDaCasa(S.cursor)];
+  if (cel && cel.focus) cel.focus();
+}
+function moverCursor(i) {
+  const sq = casaDoIndice(i);
   if (!sq) return;
+  S.cursor = sq;
+  for (let k = 0; k < 64; k++) gradeCels[k].tabIndex = k === i ? 0 : -1;
+  gradeCels[i].focus();     // o rótulo da casa é anunciado pelo foco, não pela região viva
+}
+
+/* As teclas que o tabuleiro consome quando tem o foco. É esta lista que
+   resolve o conflito com as setas da navegação de lances: aqui elas movem o
+   cursor de casa; em qualquer outro lugar da tela continuam passando lances. */
+const TECLAS_DA_GRADE = {
+  ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+};
+function teclaNoTabuleiro(e) {
+  if (!e.key || e.ctrlKey || e.metaKey || e.altKey) return;
+  const cel = e.target.closest && e.target.closest(".sq");
+  if (!cel) return;
+  const i = +cel.dataset.i, c = i % 8, r = (i - c) / 8;
+  const d = TECLAS_DA_GRADE[e.key];
+  if (d) moverCursor(Math.min(7, Math.max(0, r + d[1])) * 8 + Math.min(7, Math.max(0, c + d[0])));
+  else if (e.key === "Home") moverCursor(r * 8);            // padrão de grade:
+  else if (e.key === "End") moverCursor(r * 8 + 7);         // extremos da linha
+  else if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") clicarCasa(casaDoIndice(i));
+  else if (e.key === "Escape") {
+    if (!S.sel) return;                                     // nada a cancelar: deixa passar
+    S.sel = null; renderBoard(); anunciar(tr("aviso.cancelou"));
+  } else return;
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+/* ---------- interação (explorar variações) ----------
+   Uma função só para o clique do mouse, o clique da célula e o Enter do
+   teclado: os três fazem exatamente o mesmo, e é isso que garante que o
+   modo exploração e o treino se completem sem mouse. */
+function clicarCasa(sq) {
+  if (!sq) return;
+  S.cursor = sq;
   const ch = currentChess();
   if (S.sel) {
     const opts = ch.moves({ square: S.sel, verbose: true }).filter((m) => m.to === sq);
@@ -1280,8 +1470,21 @@ $("board").addEventListener("click", (ev) => {
     }
   }
   const p = ch.get(sq);
+  const tinha = S.sel;
   S.sel = p && p.color === ch.turn() ? sq : null;
   renderBoard();
+  if (S.sel) {
+    const n = destinosDe(ch, S.sel).length;
+    anunciar(!n ? tr("aviso.semDestino", { casa: sq })
+      : tr(n === 1 ? "aviso.selecionou1" : "aviso.selecionou", { casa: sq, n }));
+  } else if (tinha) anunciar(tr("aviso.cancelou"));
+}
+
+$("board").addEventListener("click", (ev) => {
+  const rect = ev.currentTarget.getBoundingClientRect();
+  const x = ((ev.clientX - rect.left) / rect.width) * 800;
+  const y = ((ev.clientY - rect.top) / rect.height) * 800;
+  clicarCasa(xyToSq(x, y));
 });
 
 function makeExploreMove(mv) {
@@ -1295,6 +1498,7 @@ function makeExploreMove(mv) {
   if (feito) animNext = { m: feito, dir: 1 };
   S.exploreEval = null;
   somDoLance(feito && feito.san);
+  if (feito) anunciar(tr("aviso.jogou", { san: feito.san }));
   renderBoard(); renderEvalBar();
   analyzeCurrent(true);
 }
@@ -1343,13 +1547,22 @@ function renderEvalBar() {
   t.style.color = whiteAhead ? "#15171a" : "#d9dce0";
   if (S.flipped) { $("evalWhite").style.bottom = "auto"; $("evalWhite").style.top = "0"; }
   else { $("evalWhite").style.top = "auto"; $("evalWhite").style.bottom = "0"; }
+  /* a barra é role="img": uma altura não se lê, então o rótulo diz o número.
+     Não é região viva de propósito — ela mudaria a cada lance do motor. */
+  $("evalbar").setAttribute("aria-label",
+    !pos || !txt ? tr("aval.sem")
+    : txt === "0.0" ? tr("aval.igual")
+    : tr(whiteAhead ? "aval.brancas" : "aval.pretas", { v: txt }));
 }
 
-/** Selo do lance. `mudo` tira o <title> de quem já mostra o nome ao lado. */
+/** Selo do lance. `mudo` tira o <title> de quem já mostra o nome ao lado — e,
+    sem título, o selo deixa de ser uma imagem para virar enfeite: role="img"
+    sem nome acessível é um elemento que o leitor de tela anuncia vazio. */
 function icon(cls, size, mudo) {
   const c = CLS[cls];
+  const papel = mudo ? 'aria-hidden="true"' : 'role="img"';
   const titulo = mudo ? "" : `<title>${esc(clsDica(cls))}</title>`;
-  return `<svg class="ic" viewBox="0 0 24 24" width="${size||16}" height="${size||16}" role="img">${titulo}
+  return `<svg class="ic" viewBox="0 0 24 24" width="${size||16}" height="${size||16}" ${papel}>${titulo}
     <circle cx="12" cy="12" r="11" fill="${c.cor}"/>
     <text x="12" y="17" text-anchor="middle" font-size="13" font-weight="800" fill="#0e1a06">${c.sym}</text></svg>`;
 }
@@ -1381,20 +1594,31 @@ function renderMoves() {
   });
   highlightMove();
 }
+/* O lance é <button>, não <div>: sempre foi clicável, mas como <div> ficava
+   fora da ordem de tabulação e se anunciava como texto. O rótulo acessível
+   diz por extenso o que os pixels dizem por símbolo ("Lance 12, Brancas:
+   Nf3, Melhor"); o selo colorido continua no <title> do ícone, para o mouse. */
 function moveCell(i) {
   const m = S.moves[i], pm = S.perMove[i], pos = S.positions[i + 1];
   const ev = pos ? fmtEval(pos) : "";
-  return `<div class="mv" data-ply="${i + 1}" data-i="${i}">${pm ? icon(pm.cls) : ""}
-    <span>${m.san}</span><span class="ev">${ev}</span></div>`;
+  return `<button type="button" class="mv" data-ply="${i + 1}" data-i="${i}"
+    aria-label="${esc(anuncioDoLance(i + 1))}">${pm ? icon(pm.cls) : ""}
+    <span>${m.san}</span><span class="ev">${ev}</span></button>`;
 }
 function renderMoveRow(i) {
   const el = document.querySelector('.mv[data-i="' + i + '"]');
   if (!el) return;
   const m = S.moves[i], pm = S.perMove[i], pos = S.positions[i + 1];
   el.innerHTML = `${pm ? icon(pm.cls) : ""}<span>${m.san}</span><span class="ev">${pos ? fmtEval(pos) : ""}</span>`;
+  el.setAttribute("aria-label", anuncioDoLance(i + 1));   // a classificação acabou de chegar
 }
 function highlightMove() {
-  document.querySelectorAll(".mv").forEach((el) => el.classList.toggle("on", +el.dataset.ply === S.ply));
+  document.querySelectorAll(".mv").forEach((el) => {
+    const on = +el.dataset.ply === S.ply;
+    el.classList.toggle("on", on);
+    if (on) el.setAttribute("aria-current", "true");
+    else el.removeAttribute("aria-current");
+  });
   const on = document.querySelector(".mv.on");
   if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
 }
@@ -1561,7 +1785,7 @@ function renderEngineTab(live) {
     san.forEach((m, k) => {
       if (m.color === "w") moves += `<b>${m.num}.</b> `;
       else if (first) moves += `<b>${m.num}...</b> `;
-      moves += `<span class="pvmove" data-l="${li}" data-k="${k}">${m.san}</span> `;
+      moves += `<button type="button" class="pvmove" data-l="${li}" data-k="${k}">${m.san}</button> `;
       first = false;
     });
     html += `<div class="pvline"><span class="sc${neg ? " neg" : ""}">${txt}</span>
@@ -1662,6 +1886,9 @@ function goTo(ply, opts) {
     const i = alvo - 1;
     somDoLance(S.moves[i] && S.moves[i].san, S.perMove[i] && S.perMove[i].cls);
   }
+  /* o mesmo que o som diz por timbre, dito por extenso — inclusive no play
+     automático, que sem isto seria um filme mudo para quem não vê a tela */
+  anunciar(anuncioDoLance(alvo));
 }
 $("btnStart").onclick = () => goTo(0);
 $("btnPrev").onclick  = () => goTo(S.ply - 1);
@@ -1719,9 +1946,34 @@ $("btnSound").onclick = () => {
 ["pointerdown", "keydown"].forEach((ev) =>
   document.addEventListener(ev, () => Snd.init(), { once: true }));
 
+/* ---------- atalhos globais ----------
+   AS SETAS TÊM DOIS DONOS, e o desempate é o foco — explicitamente:
+
+   • foco numa casa do tabuleiro (role=gridcell) → as setas movem o cursor de
+     casa, Enter seleciona/joga, Esc cancela;
+   • foco numa aba (role=tab) → as setas trocam de aba (padrão tablist);
+   • em qualquer outro lugar → as setas passam os lances, como sempre foi.
+
+   Os dois ouvintes de dentro já chamam stopPropagation; esta lista é a
+   garantia escrita de quem manda, e não depende da ordem dos ouvintes.
+   Enter e espaço sobre um botão ou link também param aqui: o navegador já
+   aciona o elemento, e sem isto o espaço num botão ainda ligava o play. */
+const TECLAS_DISPUTADAS = {
+  ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1,
+  Home: 1, End: 1, Enter: 1, " ": 1, Spacebar: 1, Escape: 1,
+};
+function focoDeOutroDono(e) {
+  const alvo = e.target;
+  if (!alvo || !alvo.closest) return false;
+  if (TECLAS_DISPUTADAS[e.key] && alvo.closest('#boardGrid,[role="tablist"]')) return true;
+  if ((e.key === "Enter" || e.key === " " || e.key === "Spacebar") &&
+      /^(button|a)$/i.test(alvo.tagName || "")) return true;
+  return false;
+}
 document.addEventListener("keydown", (e) => {
   if (!e.key || e.ctrlKey || e.metaKey || e.altKey) return;
   if (/input|textarea|select/i.test(e.target.tagName)) return;
+  if (focoDeOutroDono(e)) return;
   if (e.key === "ArrowLeft") { goTo(S.ply - 1); e.preventDefault(); }
   else if (e.key === "ArrowRight") { goTo(S.ply + 1); e.preventDefault(); }
   else if (e.key === "Home") goTo(0);
@@ -1858,12 +2110,37 @@ $("btnCopyPgn").onclick = () => {
     copiar(c.pgn(), "toast.pgnCopiado");
   } catch (e) { copiar($("pgnBox").value, "toast.pgnCopiado"); }
 };
-document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
+/* ---------- abas: padrão tablist ----------
+   Uma parada de tabulação para o conjunto (tabindex rotativo) e as setas
+   andando entre as abas, com o painel trocando junto — é o que o leitor de
+   tela e o teclado esperam de role=tab desde sempre. aria-selected é o que
+   diz "esta é a aba aberta"; a classe .on é só a pintura. */
+const abasBtns = () => [...document.querySelectorAll('.tabs [role="tab"]')];
+abasBtns().forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
 function showTab(name) {
-  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+  abasBtns().forEach((b) => {
+    const on = b.dataset.tab === name;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+    b.tabIndex = on ? 0 : -1;
+  });
   document.querySelectorAll(".tabpane").forEach((p) => p.classList.toggle("on", p.id === "tab-" + name));
   if (name === "report") drawGraph();
 }
+const barraAbas = document.querySelector(".tabs");
+if (barraAbas) barraAbas.addEventListener("keydown", (e) => {
+  const bs = abasBtns(), i = bs.indexOf(e.target);
+  if (i < 0) return;
+  let k;
+  if (e.key === "ArrowRight" || e.key === "ArrowDown") k = (i + 1) % bs.length;
+  else if (e.key === "ArrowLeft" || e.key === "ArrowUp") k = (i - 1 + bs.length) % bs.length;
+  else if (e.key === "Home") k = 0;
+  else if (e.key === "End") k = bs.length - 1;
+  else return;
+  e.preventDefault(); e.stopPropagation();
+  showTab(bs[k].dataset.tab);
+  bs[k].focus();
+});
 let toastT;
 function toast(msg) {
   const t = $("toast");
@@ -2166,11 +2443,16 @@ function treinoIniciar(fila) {
   const pm = document.querySelector(".panel-main");
   if (pm) pm.style.display = "none";
   treinoPosicao();
+  /* o botão que iniciou o treino acabou de ser escondido junto com as abas:
+     sem levar o foco, o teclado voltaria para o começo da página. O destino
+     é o tabuleiro — o exercício é achar um lance. */
+  focarCursor();
 }
 
 function treinoSair() {
   const t = S.treino;
   if (!t) return;
+  const doTeclado = focoNoTreino();
   treinoPararLinha();
   S.treino = null;
   S.explore = null; S.exploreEval = null; S.sel = null;
@@ -2182,6 +2464,11 @@ function treinoSair() {
   renderPlayers(); renderBoard(); renderEvalBar(); renderEngineTab();
   highlightMove(); drawGraph();
   showTab(t.volta.aba);
+  // o painel que tinha o foco não existe mais: devolve para a aba que reabriu
+  if (doTeclado) {
+    const aba = document.querySelector('.tabs [data-tab="' + t.volta.aba + '"]');
+    if (aba) aba.focus();
+  }
 }
 $("btnTrainExit").onclick = treinoSair;
 
@@ -2241,6 +2528,7 @@ function treinoJogada(mv) {
     t.certo = feito.san;
     treinoMontarLinha();
     renderBoard();
+    anunciar(tr("treino.acertou", { san: feito.san }));   // o veredito, uma vez
     treinoTocar(1);                     // a continuação segue de onde ele parou
     return;
   }
@@ -2249,6 +2537,7 @@ function treinoJogada(mv) {
   t.fase = "errou";
   t.travado = true; t.desfazer = true;
   renderBoard(); renderTreino();
+  anunciar(tr("treino.errou", { san: feito.san }));
   t.timer = setTimeout(() => {
     if (S.treino !== t) return;
     treinoDesfazerErrado();
@@ -2256,12 +2545,23 @@ function treinoJogada(mv) {
   }, TREINO_DESFAZ);
 }
 
+/* Quem chegou aqui pelo teclado está com o foco dentro do painel do treino.
+   Nos passos em que o botão apertado desaparece ("Dica", "Tentar de novo",
+   "Próximo erro"), o lugar certo do foco não é outro botão qualquer — é o
+   tabuleiro, que é onde a próxima ação acontece. */
+function focoNoTreino() {
+  const a = document.activeElement, p = $("panelTrain");
+  return !!(a && p && p.contains(a));
+}
+
 function treinoTentarDeNovo() {
   const t = S.treino;
   if (!t) return;
+  const doTeclado = focoNoTreino();
   treinoDesfazerErrado();
   t.fase = "pergunta"; t.errado = null;
   renderBoard(); renderTreino();
+  if (doTeclado) focarCursor();
 }
 
 function treinoRevelar() {
@@ -2274,16 +2574,19 @@ function treinoRevelar() {
   treinoMontarLinha();
   t.certo = t.linha.length ? t.linha[0].san : "";
   renderBoard();
+  anunciar(tr("treino.eraEsse", { san: t.certo }));
   treinoTocar(0);                       // aqui até o lance certo é mostrado
 }
 
 function treinoProximo() {
   const t = S.treino;
   if (!t) return;
+  const doTeclado = focoNoTreino();
   treinoPararLinha();
   if (t.k + 1 >= t.fila.length) { t.fase = "resumo"; renderTreino(); return; }
   t.k++;
   treinoPosicao();
+  if (doTeclado) focarCursor();
 }
 
 /* ---------- a continuação ----------
@@ -2351,6 +2654,11 @@ function renderTreino() {
   const t = S.treino;
   if (!t) return;
   const body = $("trainBody");
+  /* o painel é redesenhado por innerHTML a cada passo; sem isto, quem chegou
+     aqui pelo teclado perderia o foco para o <body> a cada Dica ou Próximo */
+  const ativo = document.activeElement;
+  const eraDentro = !!(ativo && body.contains(ativo));
+  const idAntes = eraDentro ? ativo.id : "";
 
   if (t.fase === "resumo") {
     const c = { primeira: 0, dica: 0, resposta: 0 };
@@ -2369,6 +2677,8 @@ function renderTreino() {
       </div>`;
     if ($("btnTrainRedo")) $("btnTrainRedo").onclick = () => treinoIniciar(faltaram);
     if ($("btnTrainDone")) $("btnTrainDone").onclick = treinoSair;
+    if (eraDentro) devolverFoco(body, idAntes);
+    anunciar(tr("treino.resumo.titulo"));
     return;
   }
 
@@ -2424,9 +2734,14 @@ function renderTreino() {
 
   body.innerHTML = html;
   if ($("btnTrainRetry")) $("btnTrainRetry").onclick = treinoTentarDeNovo;
-  if ($("btnTrainHint"))  $("btnTrainHint").onclick  = () => { t.dica = true; renderTreino(); };
+  if ($("btnTrainHint"))  $("btnTrainHint").onclick  = () => {
+    const doTeclado = focoNoTreino();
+    t.dica = true; renderTreino();
+    if (doTeclado) focarCursor();       // a dica diz a peça; agora é jogar
+  };
   if ($("btnTrainShow"))  $("btnTrainShow").onclick  = treinoRevelar;
   if ($("btnTrainNext"))  $("btnTrainNext").onclick  = treinoProximo;
+  if (eraDentro) devolverFoco(body, idAntes);
 }
 
 /* ============================================================
@@ -2756,6 +3071,9 @@ $("btnExportPng").onclick = exportarImagem;
 function aplicarIdioma() {
   // a abertura vem da base ECO, que fala as duas línguas
   if (S.fens.length > 1) S.abertura = aberturaDeFens(S.fens, S.headers);
+  /* a região viva guarda a última frase dita, na língua de então: trocar de
+     idioma não é hora de repetir nada, e sim de esvaziar. */
+  anunciar("");
 
   $("btnAnalyze").textContent = tr(S.analyzing ? "btn.parar" : "btn.analisar");
   atualizarPlay();                     // o title do play depende de estar tocando
@@ -2787,6 +3105,7 @@ $("btnLangEn").onclick = () => I18.definir("en");
 I18.aoTrocar(aplicarIdioma);
 
 /* ---------- início ---------- */
+montarGrade();          // as 64 células antes do primeiro desenho do tabuleiro
 aplicarIdioma();
 Engine.boot().catch(() => {});
 })();

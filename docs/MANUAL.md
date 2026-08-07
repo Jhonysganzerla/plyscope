@@ -32,6 +32,23 @@ No macOS e no Linux o script usa o **Python 3**, que quase sempre já está inst
 
 Atalhos: `←` `→` navegam, `Home`/`End` vão ao início/fim, `F` gira o tabuleiro, `espaço` liga a reprodução automática, `M` liga e desliga o som.
 
+## Sem mouse, e com leitor de tela
+
+O tabuleiro é uma parada de tabulação. Chegando nele pelo `Tab`, aparece um **cursor de casa**:
+
+| tecla | com o tabuleiro em foco |
+|---|---|
+| `↑` `↓` `←` `→` | movem o cursor de casa (girado, andam para onde apontam na tela) |
+| `Home` / `End` | primeira e última casa da linha |
+| `Enter` ou `espaço` | seleciona a peça; na segunda vez, joga o lance na casa do cursor |
+| `Esc` | desfaz a seleção |
+
+**As setas têm dois donos, e o desempate é o foco.** Com uma casa em foco elas movem o cursor; com uma aba em foco trocam de aba; em qualquer outro lugar continuam passando os lances, como sempre. Vale para `Home`, `End` e `espaço` do mesmo jeito.
+
+Explorar variações e o treino "aprenda com seus erros" se completam inteiros por teclado — o lance é o mesmo par de `Enter` que o mouse faz com dois cliques.
+
+Para leitor de tela: o tabuleiro é uma grade (`role="grid"`) e cada casa se anuncia como **"e4, peão branco"**; ao navegar a partida, uma região viva discreta diz o lance e o selo ("Lance 12, Brancas: Nf3, Melhor"), e no treino diz o veredito de cada exercício.
+
 **De que lado o tabuleiro abre.** O usuário que você digita em *Buscar partidas online* fica guardado neste navegador. Sempre que o nome bater com um dos jogadores do PGN — venha ele da busca, de um arquivo, de um texto colado ou de uma análise salva — o tabuleiro abre do seu lado: jogou de pretas, abre girado. Numa partida entre outras duas pessoas, ou sem nome guardado, ele abre como sempre, brancas embaixo. E se você girar à mão (botão ou `F`), a sua escolha vale para aquela partida — nada gira por baixo de você.
 
 ## Reprodução automática e som
