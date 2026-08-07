@@ -145,10 +145,19 @@ function somDoLance(san, cls) {
                                       e portanto de página cross-origin isolated.
    O multi-thread só é tentado quando o navegador confirma o isolamento; se ele
    não subir por qualquer motivo, o boot volta sozinho para o single-thread.
+
+   ESTE motor é o INTERATIVO: uma busca por vez, a da posição que está na
+   tela ("Analisar esta posição a fundo", avaliação ao explorar variação).
+   A análise da partida inteira roda no Pool logo abaixo, em outros workers,
+   justamente para não ficar atrás desta fila.
    ============================================================ */
 const ENGINE_MT = "engine/stockfish-lite.js";
 const ENGINE_ST = "engine/stockfish-lite-single.js";
 const ENGINE_NOME = "Stockfish 17.1 lite";
+
+/* Tabela de transposição do motor interativo. Ele é um só e faz buscas
+   longas (o "a fundo" é `go infinite`), então 128 MB se pagam. */
+const HASH_INTERATIVO = 128;
 
 const Engine = {
   w: null, ready: false, listeners: new Set(), job: null, mt: false, threads: 1, erro: false,
@@ -187,7 +196,7 @@ const Engine = {
         const line = typeof ev.data === "string" ? ev.data : (ev.data && ev.data.data) || "";
         if (!line) return;
         if (line === "uciok") {
-          this.post("setoption name Hash value 128");
+          this.post("setoption name Hash value " + HASH_INTERATIVO);
           if (this.mt && this.threads > 1) this.post("setoption name Threads value " + this.threads);
           this.post("isready");
         }
@@ -207,6 +216,256 @@ const Engine = {
   stop() { if (this.w) this.post("stop"); },
 };
 
+/* ============================================================
+   Pool de motores — a análise da partida inteira
+
+   POR QUE: analisar uma partida é avaliar ~80 posições INDEPENDENTES.
+   Uma não precisa do resultado da outra, então isto é trabalho
+   embaraçosamente paralelo: N motores de 1 thread avaliam N posições ao
+   mesmo tempo e o tempo cai por um fator próximo de N.
+
+   MEDIDO (tools/bench-pool.js, partida da Ópera, prof. 12, com o
+   Stockfish de engine/): 6,3 s num motor → 4,4 s num pool de 4, com as
+   mesmas 41–42 buscas dos dois lados. São 1,43× numa máquina cuja escala
+   de verdade é 1,57× — quatro buscas iguais em paralelo ali levam 1686 ms
+   contra 664 ms de uma sozinha. Ou seja: o pool está pegando ~90% do que
+   esta máquina tem para dar, e o teto é do hardware, não do escalonador.
+
+   ------------------------------------------------------------
+   POOL × MULTI-THREAD — a decisão está aqui, de propósito
+
+   Numa página cross-origin isolated o app sobe o Stockfish multi-thread
+   (Lazy SMP). N motores de 1 thread e 1 motor de N threads brigam pela
+   mesma CPU, então é um ou outro. Para o LOTE o pool ganha em dois pontos:
+
+     1. Escala. O Lazy SMP acelera bem abaixo de linear: cada thread nova
+        rende menos que a anterior, porque todas procuram a MESMA árvore e
+        se atropelam. Posições independentes não têm esse teto — cada
+        motor tem sua própria árvore e sua própria tabela.
+     2. Determinismo. O resultado do SMP a uma profundidade fixa depende
+        de QUEM chegou primeiro na tabela compartilhada: rodar duas vezes
+        a mesma partida pode dar dois relatórios. Um motor de 1 thread com
+        tabela própria é uma função pura da posição — e um relatório de
+        precisão que muda sozinho a cada clique não é um relatório.
+
+   Por isso o LOTE é sempre N × 1 thread (ENGINE_ST), mesmo em página
+   isolada. O motor INTERATIVO continua multi-thread quando dá: ali é uma
+   posição só, o SMP é o único jeito de ir mais fundo, e o número na tela
+   é exploratório — não entra em conta nenhuma.
+
+   ------------------------------------------------------------
+   MEMÓRIA — a conta, por motor do lote
+
+     .wasm + NNUE embutida ....... ~7 MB
+     pilha/heap do runtime ....... ~4 MB
+     tabela de transposição ...... 16 MB   (HASH_LOTE)
+                                   -------
+                                   ~27 MB  (MB_POR_MOTOR)
+
+   Buscas curtas de posição isolada (prof. 12–24, alguns milhões de nós)
+   não enchem 16 MB de tabela; 128 MB por worker seria memória parada.
+   8 × 128 MB = 1 GB é inaceitável num navegador; 6 × 27 MB = 162 MB cabe.
+   O motor interativo continua com seus 128 MB — ele é UM. Pior caso do
+   app: 128 + 162 ≈ 290 MB.
+   ============================================================ */
+const HASH_LOTE = 16;
+const MB_POR_MOTOR = 27;          // 7 (wasm) + 4 (runtime) + 16 (hash)
+const POOL_TETO = 6;              // além disto a banda de memória segura o ganho
+const POOL_MIN_NUCLEOS = 4;       // 2 núcleos: um é da interface, sobra 1 — não é pool
+const POOL_ORCAMENTO_MB = 192;    // teto de memória do lote inteiro
+const POOL_OCIOSO_MS = 120000;    // devolve a memória quando ninguém analisa
+
+/* AQUECIMENTO — quando o pool NÃO compensa.
+   Subir N motores custa tempo: são N × 7 MB de wasm para buscar (o
+   navegador guarda os bytes em cache, mas cada worker compila o seu) e N
+   handshakes UCI. Medido em tools/bench-pool.js, nesta máquina, do clique
+   até a primeira busca: 0,4 s com um motor, 0,7–0,8 s com quatro — os
+   motores sobem em PARALELO, então o custo de parede é o de um só mais a
+   disputa por CPU, não quatro vezes o de um.
+
+   Esses ~0,4 s a mais só se pagam se houver busca suficiente pela frente.
+   Medido (motor único → pool de 4, mesmo número de buscas nos dois):
+       25 posições, prof. 12 ....  2,6 s → 3,1 s   PIOR (o aquecimento come o ganho)
+       34 posições, prof. 12 ....  6,3 s → 4,4 s   1,43× — e a máquina de
+                                                   medição só dá 1,57×
+   Ou seja: o que decide não é o número de posições, é o TRABALHO — e o
+   trabalho cresce rápido com a profundidade (a mesma partida de 25
+   posições passou de 2,6 s para 8,2 s ao ir de prof. 12 para 16, ~3× a
+   cada 4 plies). A conta abaixo mede o lote em "posições na prof. 12".
+
+   Um aviso para quem for repetir a medida: comparar o tempo de parede em
+   profundidades altas engana, porque a 2ª passada não analisa as mesmas
+   posições nos dois modos — a lista de suspeitos sai da 1ª passada, e
+   alguns centipeões de diferença mudam quem entra nela. Só vale comparar
+   rodadas com o mesmo número de buscas (o bench imprime esse número). */
+const POOL_TRABALHO_MIN = 32;
+function trabalhoDoLote(posicoes, prof) { return posicoes * Math.pow(3, (prof - 12) / 4); }
+
+const Pool = {
+  motores: [], n: 0, abortado: false, morto: false, motivo: "", ocioso: null,
+
+  /** Quantos motores subir nesta máquina, para este lote. 0 = não usar pool. */
+  planeja(posicoes, prof) {
+    if (typeof Worker !== "function") { this.motivo = "sem Worker"; return 0; }
+    if (posicoes != null && trabalhoDoLote(posicoes, prof || 12) < POOL_TRABALHO_MIN) {
+      this.motivo = "lote curto demais para pagar o aquecimento"; return 0;
+    }
+    const nav = typeof navigator !== "undefined" ? navigator : {};
+    const nucleos = Number(nav.hardwareConcurrency || 0);
+    if (!(nucleos >= POOL_MIN_NUCLEOS)) { this.motivo = "poucos núcleos"; return 0; }
+    // deviceMemory vem em GB e só existe no Chromium; quando existe, ela manda.
+    const gb = Number(nav.deviceMemory || 0);
+    let orcamento = POOL_ORCAMENTO_MB;
+    if (gb > 0 && gb < 4) orcamento = Math.min(orcamento, 64);   // 2 GB de RAM: no máximo 2 motores
+    const n = Math.min(POOL_TETO,
+                       nucleos - 1,                              // um núcleo para a interface
+                       Math.floor(orcamento / MB_POR_MOTOR));
+    if (n < 2) { this.motivo = "memória curta"; return 0; }
+    this.motivo = "";
+    return n;
+  },
+  memoriaMb(n) { return (n || this.n) * MB_POR_MOTOR; },
+
+  /** Sobe os N motores EM PARALELO: o custo de parede é o de um só, não N. */
+  async boot(n) {
+    if (this.ocioso) { clearTimeout(this.ocioso); this.ocioso = null; }
+    if (this.motores.length === n && !this.morto) return true;
+    this.derruba();
+    this.morto = false;
+    const lista = [];
+    for (let k = 0; k < n; k++) lista.push(this.sobe(k));
+    try { await Promise.all(lista); }
+    catch (e) { this.derruba(); throw e; }
+    this.n = n;
+    return true;
+  },
+  sobe(k) {
+    return new Promise((resolve, reject) => {
+      let w;
+      try { w = new Worker(ENGINE_ST); } catch (e) { reject(e); return; }
+      const m = {
+        w, ouvintes: new Set(), pendente: null, id: k, vivo: true,
+        post: (c) => w.postMessage(c),
+        on: (f) => m.ouvintes.add(f),
+        off: (f) => m.ouvintes.delete(f),
+      };
+      this.motores[k] = m;
+      let pronto = false;
+      const prazo = setTimeout(() => {
+        if (!pronto) { m.vivo = false; reject(new Error("tempo esgotado no motor " + k + " do lote")); }
+      }, 90000);
+      w.onerror = (e) => { clearTimeout(prazo); this.perdeu(m); if (!pronto) reject(e); };
+      w.onmessage = (ev) => {
+        const line = typeof ev.data === "string" ? ev.data : (ev.data && ev.data.data) || "";
+        if (!line) return;
+        if (line === "uciok") { m.post("setoption name Hash value " + HASH_LOTE); m.post("isready"); }
+        if (line === "readyok" && !pronto) { pronto = true; clearTimeout(prazo); resolve(m); }
+        m.ouvintes.forEach((fn) => fn(line));
+      };
+      m.post("uci");
+    });
+  },
+  /** Um worker morreu no meio do lote: o pool inteiro é dado por perdido. */
+  perdeu(m) {
+    m.vivo = false;
+    this.morto = true;
+    this.motores.forEach((x) => { if (x && x.pendente) x.pendente(); });
+  },
+  derruba() {
+    this.motores.forEach((m) => { if (m && m.w) { try { m.w.terminate(); } catch (e) {} } });
+    this.motores = []; this.n = 0;
+    if (this.ocioso) { clearTimeout(this.ocioso); this.ocioso = null; }
+  },
+  /** Para TODAS as buscas em voo. Nenhum worker fica queimando CPU sozinho. */
+  parar() {
+    this.abortado = true;
+    this.motores.forEach((m) => { if (m && m.vivo) { try { m.post("stop"); } catch (e) {} } });
+  },
+  /** Sem análise à vista, devolve os ~160 MB para o navegador. */
+  agendaDescarte() {
+    if (!this.motores.length) return;
+    if (this.ocioso) clearTimeout(this.ocioso);
+    this.ocioso = setTimeout(() => { this.ocioso = null; this.derruba(); notaMotor(); }, POOL_OCIOSO_MS);
+  },
+
+  /* ------------------------------------------------------------
+     O LOTE, e o que exatamente é garantido
+
+     (1) O RESULTADO NÃO DEPENDE DA ORDEM DE CHEGADA. As respostas
+         voltam fora de ordem — o motor 3 pode terminar a posição 27
+         antes de o motor 0 terminar a posição 4. Nada disso importa:
+         `aoTerminar` grava em S.positions[tarefa.idx], o índice que a
+         TAREFA carrega. E como JavaScript é single-thread, o main
+         thread atende uma resposta por vez: não há duas mãos escrevendo
+         no mesmo array.
+
+     (2) O LOTE É REPRODUTÍVEL. A repartição é FIXA (Pool.faixaDe: uma
+         conta de índice), não uma fila dinâmica: quem termina primeiro
+         não muda o que os outros vão pegar. Cada motor é 1 thread com
+         tabela própria, então a sequência que ele vê é sempre a mesma.
+         Mesma partida + mesma profundidade + mesmo N ⇒ os mesmos
+         números, rodando quantas vezes for. (Medido em tools/bench-pool.js:
+         três análises seguidas da Ópera num pool de 4 dão 96,1/86,1 nas
+         três, com as mesmas 41 buscas.)
+         Uma fila dinâmica com roubo de trabalho renderia um pouco mais,
+         mas quem pega qual posição passaria a depender do relógio, e aí
+         a precisão da partida mudaria de um clique para o outro.
+
+     (3) O QUE *NÃO* É GARANTIDO, e por que não pode ser: a avaliação
+         que o Stockfish dá a uma posição numa PROFUNDIDADE FIXA depende
+         do que já está na tabela de transposição. Um motor só, andando
+         a partida em ordem, chega a cada posição com a tabela quente da
+         posição anterior; N motores repartem essa história de outro
+         jeito. Isso desloca alguns centipeões — na Ópera, 96,2/83,0 no
+         motor único contra 96,1/86,1 no pool de 4. Não é ruído do
+         escalonador (as três rodadas batem): é a mesma diferença que
+         aparece entre duas profundidades vizinhas.
+         Por isso o caminho do motor único continua intacto, byte a
+         byte, e é ele que a suíte de ponta a ponta congela.
+     ------------------------------------------------------------ */
+  /* Índices que cabem ao motor k: INTERCALADO de um em um — k, k+n, k+2n…
+     A repartição é uma conta de índice, não um sorteio: não depende de
+     quem terminou antes, e por isso o lote inteiro é reprodutível.
+
+     As duas alternativas foram medidas na partida da Ópera (prof. 12,
+     custo real de cada posição; "desbalanço" é o quanto o motor mais
+     carregado passa da média, e é ele que dita o tempo de parede):
+
+                            N=3    N=4    N=6
+       tiras contíguas      48%    55%    49%     (0..10, 11..21, …)
+       bloco-cíclico de 4   17%    39%    52%
+       intercalado 1 a 1    23%     7%    28%     ← este
+
+     Tiras contíguas aproveitam melhor a tabela de transposição (posições
+     vizinhas dividem quase toda a árvore), e isso vale ~9% do tempo de
+     busca — medido: a mesma partida com a tabela limpa a cada posição
+     passa de 8,1 s para 8,8 s. Só que a abertura custa MUITO mais que o
+     final, então quem fica com o pedaço do começo segura todo mundo: 55%
+     de desbalanço come bem mais que os 9% que a tabela devolve. */
+  faixaDe(k, n, quantas) {
+    const idx = [];
+    for (let t = k; t < quantas; t += n) idx.push(t);
+    return idx;
+  },
+  async lote(tarefas, aoTerminar) {
+    this.abortado = false;
+    const n = this.motores.length;
+    if (!n) throw Object.assign(new Error("pool vazio"), { poolMorto: true });
+    this.motores.forEach((m) => m.post("ucinewgame"));
+    const faixa = async (m, k) => {
+      for (const t of this.faixaDe(k, n, tarefas.length)) {
+        if (this.abortado || this.morto || !m.vivo) return;
+        const tk = tarefas[t];
+        const res = await buscaEm(m, tk.fen, { depth: tk.depth, multipv: tk.multipv || 2 });
+        if (this.abortado || this.morto || !m.vivo) return;
+        aoTerminar(tk, res);
+      }
+    };
+    await Promise.all(this.motores.map(faixa));
+    if (this.morto) throw Object.assign(new Error("motor do lote caiu"), { poolMorto: true });
+  },
+};
+
 /** Nota discreta na aba Motor: versão, modo e número de threads. */
 function notaMotor() {
   const el = $("engineMode");
@@ -218,6 +477,10 @@ function notaMotor() {
       : tr("motor.st") + (self.crossOriginIsolated ? "" : tr("motor.semIsolamento"));
   } else {
     modo = tr(Engine.erro ? "motor.indisponivel" : "motor.carregando");
+  }
+  // com o pool de pé, diz em quantos motores a partida é analisada e a que custo
+  if (Pool.motores.length) {
+    modo += " · " + tr("motor.lote", { n: Pool.motores.length, mb: Pool.memoriaMb() });
   }
   el.textContent = ENGINE_NOME + " (" + modo + ")";
 }
@@ -248,29 +511,40 @@ function parseInfo(line, store) {
   return store[mpv];
 }
 
-/** Roda o motor numa posição. Retorna linhas (POV de quem joga). */
-function engineGo(fen, opts) {
+/** Roda UM motor (o interativo ou um do pool) numa posição.
+    Retorna linhas (POV de quem joga). O motor só precisa saber
+    post/on/off — é o mesmo diálogo UCI dos dois lados. */
+function buscaEm(motor, fen, opts) {
   return new Promise((resolve) => {
     const store = {};
     let done = false;
+    const fim = (bm) => {
+      if (done) return;
+      done = true;
+      motor.off(handler);
+      motor.pendente = null;
+      resolve({ lines: store, bestmove: bm });
+    };
     const handler = (line) => {
       if (line.startsWith("info ") && line.indexOf(" pv ") > 0) {
         const r = parseInfo(line, store);
         if (r && opts.onUpdate) opts.onUpdate(store);
       } else if (line.startsWith("bestmove")) {
-        if (done) return;
-        done = true;
-        Engine.off(handler);
         const bm = line.split(" ")[1];
-        resolve({ lines: store, bestmove: bm === "(none)" ? null : bm });
+        fim(bm === "(none)" ? null : bm);
       }
     };
-    Engine.on(handler);
-    Engine.post("setoption name MultiPV value " + (opts.multipv || 1));
-    Engine.post("position fen " + fen);
-    Engine.post(opts.infinite ? "go infinite" : "go depth " + opts.depth);
+    // se o worker morrer, o pool chama isto e a promessa não fica pendurada
+    motor.pendente = () => fim(null);
+    motor.on(handler);
+    motor.post("setoption name MultiPV value " + (opts.multipv || 1));
+    motor.post("position fen " + fen);
+    motor.post(opts.infinite ? "go infinite" : "go depth " + opts.depth);
   });
 }
+
+/** Roda o motor interativo numa posição. */
+function engineGo(fen, opts) { return buscaEm(Engine, fen, opts); }
 
 /** Uma busca por vez: para a anterior e espera ela terminar. */
 async function engineRun(fen, opts) {
@@ -487,8 +761,56 @@ function pintarStatus() {
 }
 function status(tk, tp, mk, mp) { statusAtual = { tk, tp, mk, mp }; pintarStatus(); }
 
+/* A resposta do motor vira uma entrada de S.positions. A mesma conversão
+   serve às duas passadas e aos dois modos (pool ou motor único) — é aqui,
+   num lugar só, que o sinal do motor (POV de quem joga) vira POV brancas. */
+function entradaDeBusca(fen, res, profPedida) {
+  const stm = new Chess(fen).turn();
+  const sign = stm === "w" ? 1 : -1;
+  const l1 = res.lines[1], l2 = res.lines[2];
+  const e = {
+    cp: l1 && l1.cp != null ? l1.cp * sign : null,
+    mate: l1 && l1.mate != null ? l1.mate * sign : null,
+    best: res.bestmove || (l1 && l1.pv[0]) || null,
+    pv: (l1 && l1.pv) || [],
+    depth: l1 ? l1.depth : profPedida,
+  };
+  if (l2) {
+    const s2 = { cp: l2.cp != null ? l2.cp * sign : null, mate: l2.mate != null ? l2.mate * sign : null };
+    e.secondWin = winFor(stm, s2);
+    e.second = s2;
+  }
+  return e;
+}
+
+/* Chegou a posição i: fecha o veredito dos lances que já dá para fechar.
+   Um lance precisa da posição de ANTES e da de DEPOIS, então cada posição
+   nova pode liberar o lance i-1 e o lance i. No pool as posições chegam
+   fora de ordem, e é por isso que a regra é de vizinhança e não
+   "chegou i, classifica i-1". Com um motor só o efeito é idêntico ao de
+   antes: quando i chega, i-1 fecha e i espera. */
+function fechaLancesPerto(i) {
+  for (let j = i - 1; j <= i; j++) {
+    if (j < 0 || j >= S.moves.length || S.perMove[j]) continue;
+    if (S.positions[j] && S.positions[j + 1]) { S.perMove[j] = classify(j); renderMoveRow(j); }
+  }
+}
+
+/* Roda uma lista de tarefas [{idx, fen, depth}] e entrega cada resultado
+   por `aoTerminar`. No pool ficam N buscas em voo ao mesmo tempo; sem
+   pool é a fila de sempre, uma por vez, no motor interativo. */
+async function rodaTarefas(tarefas, comPool, aoTerminar) {
+  if (comPool) return Pool.lote(tarefas, aoTerminar);
+  for (const t of tarefas) {
+    if (S.cancel) return;
+    const res = await engineRun(t.fen, { depth: t.depth, multipv: 2 });
+    aoTerminar(t, res);
+  }
+}
+
 async function analyzeGame() {
-  if (S.analyzing) { S.cancel = true; return; }
+  // "Parar análise": derruba as buscas em voo dos DOIS modos, na hora
+  if (S.analyzing) { S.cancel = true; Pool.parar(); return; }
   if (!S.moves.length) return;
   const depth = +$("depth").value;
   S.analyzing = true; S.cancel = false;
@@ -496,60 +818,77 @@ async function analyzeGame() {
   $("panelStatus").style.display = "";
   status("status.iniciando", null, "status.carregando", null);
 
-  try { await Engine.boot(); }
-  catch (e) { toast(tr("motor.naoIniciou")); finishAnalysis(); return; }
-
-  Engine.post("ucinewgame");
   const total = S.fens.length;
-  S.positions = new Array(total).fill(null);
-  S.perMove = new Array(S.moves.length).fill(null);
-  const t0 = performance.now();
 
-  for (let i = 0; i < total; i++) {
-    if (S.cancel) break;
-    const fen = S.fens[i];
-    const tmp = new Chess(fen);
-    const stm = tmp.turn();
-    let entry;
+  /* --- modo do lote: pool de N motores ou o motor único de sempre ---
+     A escolha é feita UMA vez, antes da primeira busca, e não muda no
+     meio da análise: metade da partida num modo e metade no outro daria
+     um relatório sem pé nem cabeça. */
+  let n = Pool.planeja(total, depth);
+  if (n) {
+    status("status.iniciando", null, "status.carregandoLote", { n, mb: Pool.memoriaMb(n) });
+    try { await Pool.boot(n); }
+    catch (e) { Pool.derruba(); n = 0; }        // degradação: segue no motor único
+  }
+  let usaPool = n > 0;
+  notaMotor();
 
-    if (tmp.isGameOver()) {
-      entry = tmp.isCheckmate()
-        ? { cp: stm === "w" ? -12000 : 12000, mate: null, best: null, pv: [], mateEnd: true }
-        : { cp: 0, mate: null, best: null, pv: [] };
-    } else {
-      const res = await engineRun(fen, { depth, multipv: 2 });
-      const l1 = res.lines[1], l2 = res.lines[2];
-      const sign = stm === "w" ? 1 : -1;
-      entry = {
-        cp: l1 && l1.cp != null ? l1.cp * sign : null,
-        mate: l1 && l1.mate != null ? l1.mate * sign : null,
-        best: res.bestmove || (l1 && l1.pv[0]) || null,
-        pv: (l1 && l1.pv) || [],
-        depth: l1 ? l1.depth : depth,
-      };
-      if (l2) {
-        const s2 = { cp: l2.cp != null ? l2.cp * sign : null, mate: l2.mate != null ? l2.mate * sign : null };
-        entry.secondWin = winFor(stm, s2);
-        entry.second = s2;
-      }
-    }
-    S.positions[i] = entry;
+  // com o pool cuidando do lote, o motor interativo sobe em paralelo e fica
+  // à disposição de quem quiser explorar uma variação no meio da análise
+  if (usaPool) Engine.boot().catch(() => {});
 
-    // classifica o lance anterior assim que a posição seguinte fica pronta
-    if (i > 0) { S.perMove[i - 1] = classify(i - 1); renderMoveRow(i - 1); }
-
-    const pct = Math.round(((i + 1) / total) * 100);
-    $("statusPct").textContent = pct + "%";
-    $("progBar").style.width = pct + "%";
-    const el = (performance.now() - t0) / 1000;
-    const eta = i > 2 ? Math.round((el / (i + 1)) * (total - i - 1)) : null;
-    status("status.lance", { i: Math.min(i + 1, S.moves.length), n: S.moves.length },
-           eta != null ? "status.restante" : null, () => ({ t: fmtSeg(eta) }));
-    if (i % 3 === 0) { renderEvalBar(); }
+  if (!usaPool) {
+    try { await Engine.boot(); }
+    catch (e) { toast(tr("motor.naoIniciou")); finishAnalysis(); return; }
+    Engine.post("ucinewgame");
   }
 
-  /* --- 2ª passada: confere os momentos suspeitos com mais profundidade --- */
-  if (!S.cancel) {
+  let t0 = performance.now();
+  let feitos = 0;
+
+  async function passadas(comPool) {
+    S.positions = new Array(total).fill(null);
+    S.perMove = new Array(S.moves.length).fill(null);
+    t0 = performance.now();
+    feitos = 0;
+
+    const progresso = () => {
+      const pct = Math.round((feitos / total) * 100);
+      $("statusPct").textContent = pct + "%";
+      $("progBar").style.width = pct + "%";
+      const el = (performance.now() - t0) / 1000;
+      const eta = feitos > 3 ? Math.round((el / feitos) * (total - feitos)) : null;
+      status("status.lance", { i: Math.min(feitos, S.moves.length), n: S.moves.length },
+             eta != null ? "status.restante" : null, () => ({ t: fmtSeg(eta) }));
+      if (feitos % 3 === 0) { renderEvalBar(); }
+    };
+
+    /* --- 1ª passada: toda posição, na profundidade escolhida --- */
+    const tarefas = [];
+    for (let i = 0; i < total; i++) {
+      const tmp = new Chess(S.fens[i]);
+      if (tmp.isGameOver()) {           // fim de jogo não precisa de motor
+        const stm = tmp.turn();
+        S.positions[i] = tmp.isCheckmate()
+          ? { cp: stm === "w" ? -12000 : 12000, mate: null, best: null, pv: [], mateEnd: true }
+          : { cp: 0, mate: null, best: null, pv: [] };
+        feitos++;
+      } else {
+        tarefas.push({ idx: i, fen: S.fens[i], depth });
+      }
+    }
+    for (let i = 0; i < total; i++) if (S.positions[i]) fechaLancesPerto(i);
+    progresso();                     // zera a barra (importante quando é a 2ª tentativa)
+
+    await rodaTarefas(tarefas, comPool, (t, res) => {
+      S.positions[t.idx] = entradaDeBusca(t.fen, res, t.depth);   // índice da TAREFA, não a ordem de chegada
+      feitos++;
+      fechaLancesPerto(t.idx);
+      progresso();
+    });
+    if (S.cancel) return;
+
+    /* --- 2ª passada: confere os momentos suspeitos com mais profundidade --- */
     const suspects = new Set();
     S.perMove.forEach((pm, i) => {
       if (!pm) return;
@@ -562,32 +901,56 @@ async function analyzeGame() {
     });
     const list = [...suspects].filter((i) => S.positions[i] && !S.positions[i].mateEnd).sort((a, b) => a - b);
     const d2 = Math.min(depth + 6, 24);
-    let k = 0;
+    const tarefas2 = [];
     for (const idx of list) {
-      if (S.cancel) break;
-      k++;
-      status("status.conferindo", { k, n: list.length }, "status.profundidade", { d: d2 });
-      $("progBar").style.width = Math.round((k / list.length) * 100) + "%";
-      $("statusPct").textContent = Math.round((k / list.length) * 100) + "%";
-      const fen = S.fens[idx];
-      const tmp2 = new Chess(fen);
-      if (tmp2.isGameOver()) continue;
-      const res = await engineRun(fen, { depth: d2, multipv: 2 });
-      const l1 = res.lines[1], l2 = res.lines[2];
-      if (!l1) continue;
-      const sign = tmp2.turn() === "w" ? 1 : -1;
-      const e = {
-        cp: l1.cp != null ? l1.cp * sign : null,
-        mate: l1.mate != null ? l1.mate * sign : null,
-        best: res.bestmove || l1.pv[0], pv: l1.pv, depth: l1.depth,
-      };
-      if (l2) {
-        const s2 = { cp: l2.cp != null ? l2.cp * sign : null, mate: l2.mate != null ? l2.mate * sign : null };
-        e.secondWin = winFor(tmp2.turn(), s2); e.second = s2;
-      }
-      S.positions[idx] = e;
+      if (new Chess(S.fens[idx]).isGameOver()) continue;
+      tarefas2.push({ idx, fen: S.fens[idx], depth: d2 });
     }
+    let k = 0;
+    const progresso2 = () => {
+      const pct = tarefas2.length ? Math.round((k / tarefas2.length) * 100) : 100;
+      status("status.conferindo", { k, n: tarefas2.length }, "status.profundidade", { d: d2 });
+      $("progBar").style.width = pct + "%";
+      $("statusPct").textContent = pct + "%";
+    };
+    progresso2();
+    await rodaTarefas(tarefas2, comPool, (t, res) => {
+      k++;
+      if (res.lines[1]) S.positions[t.idx] = entradaDeBusca(t.fen, res, t.depth);
+      progresso2();
+    });
+    if (S.cancel) return;
     for (let i = 0; i < S.moves.length; i++) S.perMove[i] = classify(i);
+  }
+
+  /* Degradação: se um motor do lote morrer no meio, o pool inteiro é
+     descartado e a análise recomeça no motor único. Custa o tempo já
+     gasto, mas o usuário não fica sem análise — e o resultado é o do
+     caminho de sempre, não um híbrido. */
+  try {
+    await passadas(usaPool);
+  } catch (e) {
+    if (!usaPool || !e || !e.poolMorto || S.cancel) {
+      toast(tr("motor.naoIniciou"));
+      $("panelStatus").style.display = "none";
+      finishAnalysis();
+      renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
+      return;
+    }
+    Pool.derruba(); usaPool = false; notaMotor();
+    toast(tr("motor.loteCaiu"));
+    status("status.iniciando", null, "status.carregando", null);
+    try { await Engine.boot(); }
+    catch (e2) { toast(tr("motor.naoIniciou")); finishAnalysis(); return; }
+    Engine.post("ucinewgame");
+    try { await passadas(false); }
+    catch (e2) {
+      toast(tr("motor.naoIniciou"));
+      $("panelStatus").style.display = "none";
+      finishAnalysis();
+      renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
+      return;
+    }
   }
 
   if (!S.cancel) {
@@ -607,8 +970,14 @@ async function analyzeGame() {
 }
 function finishAnalysis() {
   S.analyzing = false; S.cancel = false;
+  Pool.abortado = false;
+  // o pool fica quente para a próxima partida e devolve a memória se ninguém vier
+  Pool.agendaDescarte();
   $("btnAnalyze").textContent = tr("btn.analisar");
 }
+
+/** A análise em lote está ocupando o motor interativo? Só quando não há pool. */
+function loteNoInterativo() { return S.analyzing && !Pool.motores.length; }
 
 /* ============================================================
    Tabuleiro
@@ -931,7 +1300,7 @@ function makeExploreMove(mv) {
 }
 $("btnBackToGame").onclick = () => {
   S.explore = null; S.sel = null; S.exploreEval = null;
-  if (!S.analyzing) Engine.stop();
+  if (!loteNoInterativo()) Engine.stop();
   $("exploreBar").classList.remove("on");
   renderBoard(); renderEvalBar(); renderEngineTab();
 };
@@ -1222,10 +1591,15 @@ function playLine(fen, uciList, n) {
   analyzeCurrent(true);
 }
 
-/* análise sob demanda da posição atual (variações / botão "a fundo") */
+/* análise sob demanda da posição atual (variações / botão "a fundo")
+   Ela roda no motor INTERATIVO, que é um worker só dela. Com o pool de
+   pé, a partida inteira está sendo analisada em OUTROS workers, então
+   não há fila nenhuma para esperar: dá para pedir "a fundo" e navegar
+   por variações no meio da análise. Sem pool o lote está usando este
+   mesmo motor, e aí a análise sob demanda espera a vez (como antes). */
 async function analyzeCurrent(quick) {
   try { await Engine.boot(); } catch (e) { toast(tr("motor.offline")); return; }
-  if (S.analyzing) return;
+  if (loteNoInterativo()) return;
   const fen = currentFen();
   const c = new Chess(fen);
   if (c.isGameOver()) { renderEngineTab({ cp: 0, mate: null, pv: [] }); return; }
@@ -1275,7 +1649,7 @@ function goTo(ply, opts) {
   const eraExplore = !!S.explore;
   if (!(opts && opts.auto)) pararPlay();
   if (S.explore) { S.explore = null; $("exploreBar").classList.remove("on"); }
-  if (!S.analyzing) Engine.stop();           // não deixa busca antiga rodando
+  if (!loteNoInterativo()) Engine.stop();           // não deixa busca antiga rodando
   S.exploreEval = null;
   S.ply = alvo;
   S.sel = null;
@@ -1781,7 +2155,7 @@ function treinoIniciar(fila) {
   const f = fila && fila.length ? fila.slice() : filaDeErros(lado);
   if (!f.length) { toast(tr("treino.vazio")); return; }
   pararPlay();
-  if (!S.analyzing) Engine.stop();
+  if (!loteNoInterativo()) Engine.stop();
   const volta = (S.treino && S.treino.volta) ||
                 { ply: S.ply, flipped: S.flipped, aba: abaAtiva() };
   treinoPararLinha();

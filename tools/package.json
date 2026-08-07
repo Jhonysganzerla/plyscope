@@ -4,6 +4,9 @@
   "description": "Ferramentas de desenvolvimento do Plyscope: teste funcional e calibração do detector de lance brilhante.",
   "scripts": {
     "test": "node test.js",
+    "unit": "node --test unit.js",
+    "test-pool": "node --test test-pool.js",
+    "bench-pool": "node bench-pool.js",
     "calibrar": "node calibrar.js recall 16",
     "tune": "node tune.js"
   },

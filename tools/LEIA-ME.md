@@ -26,6 +26,27 @@ node test.js partida.pgn     # usa o seu
 
 Leva ~35 s (roda o motor de verdade). Os avisos `JSDOM ERR ... getContext()` são esperados: jsdom não implementa canvas, então só o gráfico não é desenhado.
 
+## `test-pool.js` — testes do pool de motores
+
+O assunto aqui é o escalonador da análise em lote, não o xadrez: o motor é um stub que fala UCI e devolve uma avaliação que é **função pura do FEN** — e responde fora de ordem de propósito. Com isso, o caminho antigo (um motor) e o pool (N motores) têm de dar relatórios **idênticos**; se algum resultado cair no índice errado, os números mudam e o teste cai.
+
+```bash
+node --test test-pool.js
+```
+
+Prova que N posições ficam em voo ao mesmo tempo, que o teto de motores e a conta de memória são respeitados, que "Parar análise" para todos sem deixar busca órfã, que "Analisar esta posição a fundo" responde num motor dedicado no meio do lote, e que sem `Worker`, com pool que não sobe, com pouca memória ou com um motor que morre no meio, o caminho de sempre assume e a análise sai inteira.
+
+## `bench-pool.js` — mede o ganho do pool
+
+Roda a mesma análise da mesma partida pelo caminho antigo e pelo pool, na mesma máquina, com o Stockfish de verdade, e imprime os tempos lado a lado. O que muda entre uma configuração e outra é só o `navigator.hardwareConcurrency`: quem decide o tamanho do pool continua sendo o app.
+
+```bash
+node bench-pool.js                                        # Ópera, prof. 12, 2 e 4/5/9 núcleos
+node bench-pool.js ../docs/exemplos/opera-1858.pgn 16 2,9  # outra profundidade
+```
+
+Cada configuração roda num processo separado. Além do tempo, mostra o aquecimento (clique → primeira busca) e o pico de buscas simultâneas.
+
 ## `calibrar.js` — mede o detector de Brilhante
 
 ```bash
