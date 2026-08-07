@@ -13,27 +13,13 @@ const OUT = process.env.PLYSCOPE_OUT || path.join(__dirname, "saida");
 const BENCH = process.env.PLYSCOPE_BENCH || path.join(OUT, "bench.json");
 fs.mkdirSync(OUT, { recursive: true });
 const ENGINE = path.join(ROOT, "engine", "stockfish-lite-single.js");
-const APP = path.join(ROOT, "src", "app.js");
 const CACHE = path.join(OUT, "evalcache.json");
 
-/* ---------- importa a lógica pura do app.js ---------- */
-function loadPure() {
-  const src = fs.readFileSync(APP, "utf8");
-  const cut = (a, b) => {
-    const i = src.indexOf(a), j = src.indexOf(b, i);
-    if (i < 0 || j < 0) throw new Error("marcador não encontrado: " + a);
-    return src.slice(i, j);
-  };
-  const bloco = [
-    cut("const CLS = {", "const CLS_ORDER"),
-    "const CLS_ORDER = Object.keys(CLS).sort((a,b)=>CLS[a].ord-CLS[b].ord);",
-    cut("function scoreToCp(", "function fmtEval("),
-    cut("/* ---------- SEE simplificado", "/* ============================================================\n   Classificação de lances"),
-    "return { classifyMove, sacrificeInfo, ofertaAnterior, winFor, scoreToCp, winPct, moveAccuracy, PV_VAL, BRI };",
-  ].join("\n");
-  return new Function("Chess", bloco)(Chess);
-}
-const P = loadPure();
+/* ---------- a lógica pura, o mesmo módulo que roda no navegador ----------
+   src/classify.js é injetado no index.html pelo marcador /*__CLASSIFY__*\/ do
+   shell.html e carregado aqui por require(): não existe segunda implementação
+   da regra, nem recorte de texto por comentário, para medir. */
+const P = require(path.join(ROOT, "src", "classify.js"));
 
 /* ---------- motor ---------- */
 let eng, buf = "", waiting = null;

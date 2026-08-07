@@ -27,3 +27,34 @@ jobs:
             exit 1
           fi
           echo "index.html está em dia."
+
+  testes:
+    name: testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Instalar dependências de teste
+        working-directory: tools
+        run: npm install --no-audit --no-fund
+
+      - name: Testes unitários (funções puras, sem motor)
+        working-directory: tools
+        run: node --test unit.js
+
+      # o Stockfish está versionado em engine/, então a suíte de ponta a ponta
+      # roda no CI sem baixar nada: jsdom + o motor de verdade, ~40 s.
+      - name: Reconstruir o index.html
+        run: python3 src/build.py
+
+      - name: Teste de ponta a ponta (jsdom + Stockfish real)
+        working-directory: tools
+        run: node test.js ../docs/exemplos/opera-1858.pgn

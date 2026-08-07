@@ -50,6 +50,22 @@ window.Worker = class {
 const $ = (id) => window.document.getElementById(id);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/* ---------- asserções ----------
+   Toda conferência passa por aqui: o resultado vai para `ok`, sai no
+   resumo do fim e UMA falha derruba a suíte (exit 1). Enquanto isto era
+   só console.log, a suíte imprimia "FALHOU" e saía com código 0 — que é
+   o mesmo que não ter teste. */
+const ok = [];
+const conf = (rot, cond, extra) => {
+  ok.push(!!cond);
+  console.log(" ", (cond ? "ok  " : "FALHOU ") + rot, extra === undefined ? "" : extra);
+  return !!cond;
+};
+/* Os números exatos (33 lances, 96,2 / 83,0, 3 brilhantes) são da partida
+   da Ópera; com outro PGN só valem as conferências que não dependem dela. */
+const OPERA = /Paul Morphy/.test(PGN);
+const t1 = (el) => (el || { textContent: "" }).textContent.replace(/\s+/g, " ").trim();
+
 (async () => {
   await wait(300);
 
@@ -60,11 +76,18 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("navigator.language:", window.navigator.language,
     "| idioma deduzido:", window.document.documentElement.lang,
     "| botão analisar:", $("btnAnalyze").textContent.trim());
+  conf("navegador en-US abre o app em inglês",
+    window.navigator.language === "en-US" && window.document.documentElement.lang === "en"
+    && $("btnAnalyze").textContent.trim() === "Analyze game");
   $("btnLangPt").click();
   await wait(50);
   const ROTULO_ANALISAR = $("btnAnalyze").textContent;
   console.log("depois de escolher PT:", window.document.documentElement.lang,
     "|", ROTULO_ANALISAR, "| guardado:", window.localStorage.getItem("plyscope.idioma"));
+  conf("escolher português troca a tela e fica guardado",
+    window.document.documentElement.lang === "pt-BR"
+    && ROTULO_ANALISAR.trim() === "Analisar partida"
+    && window.localStorage.getItem("plyscope.idioma") === "pt");
 
   console.log("\n== carregando PGN ==");
   $("pgnBox").value = PGN;
@@ -75,6 +98,11 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("lances na lista:", nMoves);
   console.log("peças no tabuleiro (posição inicial):", $("gPieces").childNodes.length);
   console.log("jogadores:", $("nmBot").textContent, "vs", $("nmTop").textContent);
+  conf("PGN vira lista de lances e tabuleiro cheio",
+    nMoves > 0 && $("gPieces").childNodes.length === 32);
+  if (OPERA) conf("a Ópera tem 33 meios-lances e os dois jogadores no lugar",
+    nMoves === 33 && $("nmBot").textContent === "Paul Morphy"
+    && $("nmTop").textContent === "Duque Karl / Conde Isouard");
 
   console.log("== analisando (profundidade 12) ==");
   $("depth").value = "12";
@@ -90,7 +118,22 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     console.log("  brancas " + c[0].textContent.trim().padStart(3) +
       "  " + c[1].textContent.trim().padEnd(12) + " pretas " + c[2].textContent.trim());
   });
-  console.log("  precisão:", [...window.document.querySelectorAll(".accbox .v")].map((e) => e.textContent).join(" / "));
+  const precisao = [...window.document.querySelectorAll(".accbox .v")].map((e) => e.textContent).join(" / ");
+  console.log("  precisão:", precisao);
+  const linhasRel = [...window.document.querySelectorAll(".report-grid .r")]
+    .map((r) => [...r.children].slice(0, 3).map((c) => c.textContent.trim()).join(" ")).join(" | ");
+  conf("todo lance recebeu selo", window.document.querySelectorAll(".mv .ic").length === nMoves);
+  if (OPERA) {
+    conf("precisão da Ópera", precisao === "96,2 / 83,0", "| " + precisao);
+    conf("relatório da Ópera lance a lance",
+      linhasRel === "3 Brilhante 0 | 4 Excelente 0 | 8 Melhor 3 | 0 Ótimo 1 | 1 Bom 5 | 0 Forçado 1 | 1 Impreciso 6",
+      "| " + linhasRel);
+    const brilhantes = [...window.document.querySelectorAll(".mv")]
+      .filter((e) => t1(e.querySelector(".ic title")) === "Brilhante")
+      .map((e) => t1(e.querySelector("span:not(.ev)")));
+    conf("os três sacrifícios de Morphy saem como Brilhante",
+      brilhantes.join(" ") === "Nxb5 Rxd7 Qb8+", "| " + brilhantes.join(" "));
+  }
   console.log("  " + [...window.document.querySelectorAll("[data-goto]")].map((e) => e.textContent.replace(/\s+/g, " ").trim()).join("\n  "));
 
   console.log("\n== lances classificados ==");
@@ -102,12 +145,18 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   $("btnEnd").click();
   await wait(100);
   console.log("setas desenhadas:", $("gArrows").childNodes.length, "| selo:", $("gBadge").childNodes.length);
+  conf("no fim da partida o lance jogado ganha selo e não há seta de melhor lance",
+    $("gBadge").childNodes.length === 1 && $("gArrows").childNodes.length === 0);
   $("btnPrev").click(); await wait(50);
   console.log("aba motor:", $("engineLines").textContent.replace(/\s+/g, " ").trim().slice(0, 200));
+  conf("a aba do motor mostra avaliação e profundidade",
+    /prof\.\s*\d+/.test($("engineLines").textContent));
 
   console.log("\n== interações ==");
   $("btnFlip").click(); await wait(50);
   console.log("flip: barra altura =", $("evalWhite").style.height, "| ancora top =", $("evalWhite").style.top);
+  conf("girado, a barra de avaliação ancora em cima",
+    $("evalWhite").style.top === "0px" && $("evalWhite").style.bottom === "auto");
   $("btnFlip").click(); await wait(50);
 
   // clique numa peça e depois num destino legal (modo exploração)
@@ -121,14 +170,23 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   $("board").getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 800 });
   click("e2"); await wait(30);
   console.log("após clicar e2 — realces:", $("gHigh").childNodes.length);
+  conf("clicar numa peça realça a casa e os destinos legais",
+    $("gHigh").childNodes.length > 0);
   click("e4"); await wait(2500);
   console.log("modo exploração ativo:", $("exploreBar").className,
     "| barra:", $("evalWhite").style.height, "| motor:", $("engineLines").textContent.replace(/\s+/g," ").trim().slice(0,80));
+  conf("lance no tabuleiro entra em modo exploração e o motor responde",
+    /\bon\b/.test($("exploreBar").className) && $("engineLines").textContent.trim().length > 0);
 
   // clique num lance da linha do motor
   const pv = window.document.querySelector(".pvmove");
-  if (pv) { pv.click(); await wait(1500); console.log("clique na PV ok — peças:", $("gPieces").childNodes.length); }
-  else console.log("PV sem lances clicáveis");
+  conf("a linha do motor tem lances clicáveis", !!pv);
+  if (pv) {
+    pv.click(); await wait(1500);
+    console.log("clique na PV ok — peças:", $("gPieces").childNodes.length);
+    conf("seguir a variação do motor mantém o tabuleiro de pé",
+      $("gPieces").childNodes.length > 0);
+  }
 
   $("btnBackToGame").click(); await wait(50);
 
@@ -137,12 +195,16 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   $("speed").value = "600";
   $("btnPlay").click(); await wait(1400);
   const plyAgora = () => (window.document.querySelector(".mv.on") || { dataset: {} }).dataset.ply;
-  console.log("play ligado:", $("btnPlay").className.includes("on"), "| lance atual:", plyAgora());
+  const plyPlay = plyAgora();
+  conf("reprodução automática anda sozinha", $("btnPlay").className.includes("on") && +plyPlay > 0,
+    "| lance atual: " + plyPlay);
   $("btnPlay").click(); await wait(700);
-  console.log("play desligado:", !$("btnPlay").className.includes("on"), "| parou no lance:", plyAgora());
+  conf("clicar de novo para a reprodução onde estava",
+    !$("btnPlay").className.includes("on") && plyAgora() === plyPlay, "| parou no lance: " + plyAgora());
   $("btnNext").click(); await wait(30);
-  console.log("navegação manual ainda funciona:", plyAgora());
-  $("btnSound").click(); console.log("mudo:", $("btnSound").className.includes("off"));
+  conf("navegação manual ainda funciona", +plyAgora() === +plyPlay + 1, "| lance " + plyAgora());
+  $("btnSound").click();
+  conf("botão de som muda para mudo", $("btnSound").className.includes("off"));
   $("btnSound").click();
 
   /* ================= análises salvas ================= */
@@ -150,8 +212,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const CHAVE = "plyscope.analises.v1";
   const bruto = window.localStorage.getItem(CHAVE);
   const lista = JSON.parse(bruto || "[]");
-  console.log("salva automaticamente ao fim da análise:", lista.length === 1,
-    "| chave:", CHAVE, "| total no armazenamento:", (bruto || "").length + " B");
+  conf("a análise é salva sozinha ao terminar", lista.length === 1,
+    "| chave: " + CHAVE + " | total no armazenamento: " + (bruto || "").length + " B");
   const rec = lista[0] || {};
   const bytes = JSON.stringify(rec).length;
   console.log("uma análise de", (rec.pm || []).length, "lances ocupa", bytes, "B",
@@ -159,16 +221,16 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     Math.round((bytes / Math.max(1, (rec.pm || []).length)) * 80 / 1024 * 10) / 10 + " KB por 80 lances");
   /* as linhas do motor continuam fora do registro; a única variação guardada
      é a das posições de erro, que é a resposta do treino (ver "treino" abaixo) */
-  console.log("sem as linhas do motor:", !/"pv"/.test(bruto || ""),
-    "| variação guardada:", rec.pvt ? Object.keys(rec.pvt).length + " posições de erro"
-                                    : "(esta partida não tem erro grave)");
+  conf("o registro não carrega as linhas do motor", !/"pv"/.test(bruto || ""),
+    "| variação guardada: " + (rec.pvt ? Object.keys(rec.pvt).length + " posições de erro"
+                                       : "(esta partida não tem erro grave)"));
   const itens = window.document.querySelectorAll("#savedList .saved");
-  console.log("itens na lista de salvas:", itens.length, "|",
-    (itens[0] || { textContent: "" }).textContent.replace(/\s+/g, " ").trim());
+  conf("a análise aparece na lista de salvas", itens.length === 1,
+    "| " + (itens[0] || { textContent: "" }).textContent.replace(/\s+/g, " ").trim());
 
   /* ================= troca de idioma com a análise na tela ================= */
   console.log("\n== troca de idioma (com análise aberta) ==");
-  const txt1 = (el) => (el || { textContent: "" }).textContent.replace(/\s+/g, " ").trim();
+  const txt1 = t1;
   const foto = () => ({
     lang:      window.document.documentElement.lang,
     titulo:    window.document.title,
@@ -234,27 +296,30 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   par("exportar", pt1.exportar, en.exportar);
 
   const mudou = (a, b) => !!a && !!b && a !== b;
-  console.log("  TOPO mudou:", mudou(pt1.titulo, en.titulo) && mudou(pt1.tagline, en.tagline) &&
+  conf("TOPO mudou", mudou(pt1.titulo, en.titulo) && mudou(pt1.tagline, en.tagline) &&
     mudou(pt1.analisar, en.analisar) && mudou(pt1.nova, en.nova) && mudou(pt1.prof, en.prof) &&
-    mudou(pt1.vel, en.vel), "| <html lang>:", pt1.lang, "→", en.lang);
-  console.log("  ABAS mudaram:", mudou(pt1.abas, en.abas));
-  console.log("  RELATÓRIO mudou:", mudou(pt1.relLbl, en.relLbl) && mudou(pt1.relUnid, en.relUnid) &&
-    mudou(pt1.grafico, en.grafico) && mudou(pt1.abertura, en.abertura),
-    "| momentos decisivos:", pt1.momentos ? mudou(pt1.momentos, en.momentos) : "(esta partida não tem)");
-  console.log("  SELOS DA LISTA mudaram:", mudou(pt1.selos.join("|"), en.selos.join("|")));
-  console.log("  ANÁLISES SALVAS mudaram:", mudou(pt1.salvasDica, en.salvasDica) && mudou(pt1.salvasItem, en.salvasItem));
-  console.log("  selo do pior lance — pt Capivarada / en Blunder:",
+    mudou(pt1.vel, en.vel), "| <html lang>: " + pt1.lang + " → " + en.lang);
+  conf("ABAS mudaram", mudou(pt1.abas, en.abas));
+  conf("RELATÓRIO mudou", mudou(pt1.relLbl, en.relLbl) && mudou(pt1.relUnid, en.relUnid) &&
+    mudou(pt1.grafico, en.grafico) && mudou(pt1.abertura, en.abertura));
+  conf("momentos decisivos mudaram", pt1.momentos ? mudou(pt1.momentos, en.momentos) : true,
+    pt1.momentos ? "" : "| (esta partida não tem)");
+  conf("SELOS DA LISTA mudaram", mudou(pt1.selos.join("|"), en.selos.join("|")));
+  conf("ANÁLISES SALVAS mudaram", mudou(pt1.salvasDica, en.salvasDica) && mudou(pt1.salvasItem, en.salvasItem));
+  conf("selo do pior lance — pt Capivarada / en Blunder",
     /Capivarada/.test(pt1.legenda) && /Blunder/.test(en.legenda) && !/Capivarada/.test(en.legenda),
-    "| legenda pt:", JSON.stringify(pt1.capiTip), "| en:", JSON.stringify(en.capiTip));
+    "| legenda pt: " + JSON.stringify(pt1.capiTip) + " | en: " + JSON.stringify(en.capiTip));
 
-  console.log("  ANÁLISE INTACTA — selos:", pt1.nSelos, "→", en.nSelos,
-    "| SAN idêntico:", pt1.san === en.san,
-    "| lance selecionado:", pt1.ply === en.ply,
-    "| momentos decisivos:", pt1.momentos.split(" | ").length === en.momentos.split(" | ").length);
-  console.log("  mesma precisão, formato de cada língua:", pt1.precisao, "→", en.precisao,
-    "|", pt1.precisao.replace(/,/g, ".") === en.precisao && pt1.precisao !== en.precisao);
-  console.log("  seleções preservadas — profundidade:", pt1.profVal === en.profVal, en.profVal,
-    "| velocidade:", pt1.velVal === en.velVal, en.velVal);
+  conf("ANÁLISE INTACTA: mesmos selos, mesmo SAN, mesmo lance selecionado",
+    pt1.nSelos === en.nSelos && pt1.nSelos > 0 && pt1.san === en.san && pt1.ply === en.ply
+    && pt1.momentos.split(" | ").length === en.momentos.split(" | ").length,
+    "| selos: " + pt1.nSelos + " → " + en.nSelos);
+  conf("mesma precisão, formato de cada língua",
+    pt1.precisao.replace(/,/g, ".") === en.precisao && pt1.precisao !== en.precisao,
+    "| " + pt1.precisao + " → " + en.precisao);
+  conf("seleções preservadas (profundidade e velocidade)",
+    pt1.profVal === en.profVal && pt1.velVal === en.velVal,
+    "| prof. " + en.profVal + " · vel. " + en.velVal);
 
   // sobras: palavras que não podem sobrar na tela em modo inglês
   const RESTOS = ["precisão", "Precisão", "análise", "Análise", "Partida", "partida", "lance",
@@ -262,7 +327,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
                   "Momentos", "Legenda", "Buscar", "Carregar", "Apagar", "Voltar", "Analisar"];
   const naTela = () => window.document.querySelector(".app").textContent.replace(/\s+/g, " ");
   const sobras = RESTOS.filter((w) => naTela().indexOf(w) >= 0);
-  console.log("  sobras em português na tela em inglês:", sobras.length ? sobras.join(", ") : "(nenhuma)");
+  conf("nenhuma sobra em português na tela em inglês", sobras.length === 0,
+    "| " + (sobras.length ? sobras.join(", ") : "(nenhuma)"));
 
   /* A mesma varredura, agora tirada do dicionário e nos dois sentidos: para
      cada chave, o texto da língua ERRADA não pode estar escrito na tela.
@@ -277,46 +343,48 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       .map((k) => k + " " + JSON.stringify(errado[k].slice(0, 40)));
   };
   const restoPt = varrer(dicPt, dicEn);
-  console.log("  varredura pelo dicionário — português na tela em inglês:",
-    restoPt.length ? restoPt.join(" | ") : "(nenhuma)");
+  conf("varredura pelo dicionário: nada de português na tela em inglês", restoPt.length === 0,
+    "| " + (restoPt.length ? restoPt.join(" | ") : "(nenhuma)"));
 
   $("btnLangPt").click(); await wait(150);
   const restoEn = varrer(dicEn, dicPt);
-  console.log("  varredura pelo dicionário — inglês na tela em português:",
-    restoEn.length ? restoEn.join(" | ") : "(nenhuma)");
+  conf("varredura pelo dicionário: nada de inglês na tela em português", restoEn.length === 0,
+    "| " + (restoEn.length ? restoEn.join(" | ") : "(nenhuma)"));
   const pt2 = foto();
   const voltou = JSON.stringify(pt1) === JSON.stringify(pt2);
-  console.log("  de volta ao português, tela idêntica à de antes:", voltou);
+  conf("de volta ao português, tela idêntica à de antes", voltou);
   if (!voltou) {
     Object.keys(pt1).forEach((k) => {
       if (JSON.stringify(pt1[k]) !== JSON.stringify(pt2[k]))
         console.log("    difere:", k, JSON.stringify(pt1[k]), "≠", JSON.stringify(pt2[k]));
     });
   }
-  console.log("  idioma guardado:", window.localStorage.getItem("plyscope.idioma"));
+  conf("idioma guardado é o último escolhido",
+    window.localStorage.getItem("plyscope.idioma") === "pt");
 
   // limpa a tela recarregando o PGN cru: sem selos, sem precisão
   $("btnLoadPgn").click(); await wait(200);
   const selosAntes = window.document.querySelectorAll(".mv .ic").length;
-  console.log("depois de recarregar o PGN cru — selos:", selosAntes,
-    "| precisão:", window.document.querySelectorAll(".accbox .v").length);
+  conf("recarregar o PGN cru limpa selos e precisão",
+    selosAntes === 0 && window.document.querySelectorAll(".accbox .v").length === 0);
 
   // reabre a análise salva: nada de motor
   const goAntes = buscasNoMotor;
   window.document.querySelector("#savedList [data-open]").click();
   await wait(300);
   const selosDepois = window.document.querySelectorAll(".mv .ic").length;
-  console.log("reaberta — selos:", selosDepois, "| precisão:",
-    [...window.document.querySelectorAll(".accbox .v")].map((e) => e.textContent).join(" / "),
-    "| buscas no motor:", buscasNoMotor - goAntes);
-  console.log("restaurou tudo sem o motor:",
-    selosAntes === 0 && selosDepois > 0 && buscasNoMotor - goAntes === 0);
-  console.log("análise salva reaberta sem usuário conhecido — brancas embaixo:",
-    $("nmBot").textContent + " embaixo /", $("nmTop").textContent, "em cima");
-  console.log("aba ativa após reabrir:",
-    (window.document.querySelector(".tabs button.on") || {}).textContent,
-    "| gráfico presente:", !!$("graph"), "| botões de exportar visíveis:", $("exportRow").style.display === "");
-  console.log("sem duplicar ao reabrir:",
+  const precisaoReaberta = [...window.document.querySelectorAll(".accbox .v")].map((e) => e.textContent).join(" / ");
+  conf("reabrir a análise salva restaura tudo sem encostar no motor",
+    selosDepois === nMoves && buscasNoMotor - goAntes === 0,
+    "| selos: " + selosDepois + " | precisão: " + precisaoReaberta + " | buscas: " + (buscasNoMotor - goAntes));
+  if (OPERA) conf("a precisão reaberta é a mesma de antes", precisaoReaberta === "96,2 / 83,0");
+  conf("sem usuário conhecido a reaberta abre com brancas embaixo",
+    $("evalWhite").style.bottom !== "auto",
+    "| " + $("nmBot").textContent + " embaixo / " + $("nmTop").textContent + " em cima");
+  conf("reabrir cai no relatório, com gráfico e botões de exportar",
+    t1(window.document.querySelector(".tabs button.on")) === "Relatório"
+    && !!$("graph") && $("exportRow").style.display === "");
+  conf("reabrir não duplica o registro",
     JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length === 1);
 
   /* ================= exportar PGN comentado ================= */
@@ -327,25 +395,33 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   try { window.URL.createObjectURL = () => "blob:teste"; window.URL.revokeObjectURL = () => {}; } catch (e) {}
   $("btnExportPgn").click(); await wait(100);
   const pgnAnot = capturado ? capturado.partes.join("") : "";
-  console.log("tipo do arquivo:", capturado && capturado.opts && capturado.opts.type);
-  console.log("tem [Annotator \"Plyscope\"]:", /\[Annotator "Plyscope"\]/.test(pgnAnot));
-  console.log("tem cabeçalhos originais:", /\[White "/.test(pgnAnot) && /\[Black "/.test(pgnAnot));
+  conf("o arquivo sai como PGN", capturado && capturado.opts &&
+    /^application\/x-chess-pgn(;|$)/.test(capturado.opts.type),
+    "| " + (capturado && capturado.opts && capturado.opts.type));
+  conf('tem [Annotator "Plyscope"] e os cabeçalhos originais',
+    /\[Annotator "Plyscope"\]/.test(pgnAnot) && /\[White "/.test(pgnAnot) && /\[Black "/.test(pgnAnot));
   const comentarios = pgnAnot.match(/\{[^}]*\}/g) || [];
   const comEval = comentarios.filter((c) => /\[%eval (-?\d+\.\d\d|#-?\d+)\]/.test(c));
-  console.log("comentários:", comentarios.length, "| com [%eval] inteiro numa linha:", comEval.length,
-    "| lances:", window.document.querySelectorAll(".mv").length,
-    "| sem eval (mate no tabuleiro):", comentarios.length - comEval.length);
+  conf("todo lance vira comentário, quase todos com [%eval] numa linha",
+    comentarios.length === window.document.querySelectorAll(".mv").length && comEval.length > 0,
+    "| " + comentarios.length + " comentários, " + comEval.length + " com eval, " +
+    (comentarios.length - comEval.length) + " sem (mate no tabuleiro)");
   const nags = (pgnAnot.match(/\$\d+/g) || []);
-  console.log("NAGs usados:", [...new Set(nags)].sort().join(" ") || "(nenhum)", "| total:", nags.length);
-  console.log("comentário de erro tem a perda:",
+  conf("os selos viram NAG padrão de PGN", nags.length > 0 && nags.every((x) => /^\$\d+$/.test(x)),
+    "| usados: " + ([...new Set(nags)].sort().join(" ") || "(nenhum)") + " | total: " + nags.length);
+  conf("comentário de erro traz a perda em chance de vitória",
     /\{ \[%eval [^\]]+\] (Impreciso|Erro|Capivarada)[^}]*perdeu \d+% de chance de vitória/.test(pgnAnot));
-  console.log("linhas com mais de 80 colunas:", pgnAnot.split("\n").filter((l) => l.length > 80).length);
+  conf("nenhuma linha passa de 80 colunas",
+    pgnAnot.split("\n").filter((l) => l.length > 80).length === 0);
   // o PGN gerado tem que voltar a ser lido por um parser de verdade
+  let relido = -1;
   try {
     const c2 = new (require("chess.js").Chess)();
     c2.loadPgn(pgnAnot, { strict: false });
-    console.log("relido por chess.js:", c2.history().length, "lances");
+    relido = c2.history().length;
   } catch (e) { console.log("relido por chess.js: FALHOU —", e.message); }
+  conf("o PGN anotado volta a ser lido por um parser de verdade",
+    relido === window.document.querySelectorAll(".mv").length, "| " + relido + " lances");
   console.log("--- primeiras 10 linhas ---");
   console.log(pgnAnot.split("\n").slice(0, 10).join("\n"));
   console.log("--- início dos lances ---");
@@ -357,10 +433,10 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   capturado = null;
   $("btnExportPgn").click(); await wait(100);
   const pgnEn = capturado ? capturado.partes.join("") : "";
-  console.log("exportado em inglês — comentário de erro:",
+  conf("exportado em inglês, o comentário de erro fala inglês",
     /\{ \[%eval [^\]]+\] (Inaccuracy|Mistake|Blunder)[^}]*gave up \d+% winning chances/.test(pgnEn));
-  console.log("  NAGs idênticos:", (pgnEn.match(/\$\d+/g) || []).join(" ") === nags.join(" "),
-    "| lances idênticos:",
+  conf("notação e NAG não mudam com o idioma",
+    (pgnEn.match(/\$\d+/g) || []).join(" ") === nags.join(" ") &&
     (pgnEn.replace(/\{[^}]*\}/g, "").replace(/\s+/g, " ")) === (pgnAnot.replace(/\{[^}]*\}/g, "").replace(/\s+/g, " ")));
   console.log("  amostra:", (pgnEn.match(/\{[^}]*(gave up|better was)[^}]*\}/) || ["(nenhuma)"])[0]);
   $("btnLangPt").click(); await wait(80);
@@ -370,7 +446,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("\n== imagem do relatório ==");
   // 1) do jeito que o jsdom é de fábrica: sem getContext, o app só avisa
   $("btnExportPng").click(); await wait(100);
-  console.log("sem canvas o app não quebra — aviso:", $("toast").textContent);
+  conf("sem canvas o app avisa em vez de quebrar", $("toast").textContent.length > 0,
+    "| " + $("toast").textContent);
 
   // 2) com um contexto 2D de mentira, para rodar o desenho de verdade
   const desenho = { fill: 0, stroke: 0, arc: 0, fillRect: 0, textos: [] };
@@ -391,17 +468,22 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     cb(new window.Blob(["png"], { type: tipo || "image/png" }));
   };
   $("btnExportPng").click(); await wait(100);
-  console.log("PNG gerado:", !!png, "| dimensões:", png && png.w + "x" + png.h,
-    "(devicePixelRatio mínimo 2) | tipo:", png && png.tipo, "|", $("toast").textContent);
-  console.log("desenhou — fundo opaco:", desenho.fillRect > 0, "| formas preenchidas:", desenho.fill,
-    "| círculos (selos + erros no gráfico):", desenho.arc, "| textos:", desenho.textos.length);
+  conf("com um contexto 2D o PNG é gerado em alta resolução",
+    !!png && png.w >= 1200 && png.tipo === "image/png",
+    "| " + (png && png.w + "x" + png.h) + " | " + $("toast").textContent);
+  conf("o desenho tem fundo opaco, formas e texto",
+    desenho.fillRect > 0 && desenho.fill > 0 && desenho.arc > 0 && desenho.textos.length > 0,
+    "| formas: " + desenho.fill + " | círculos: " + desenho.arc + " | textos: " + desenho.textos.length);
   const txt = desenho.textos.join(" | ");
-  console.log("mostra nome do app:", /Plyscope/.test(txt),
-    "| os dois jogadores:", txt.indexOf("Paul Morphy") >= 0 && /Duque Karl/.test(txt),
-    "| precisão:", /precisão \(%\)/.test(txt) && /\b96,2\b/.test(txt) && /\b83,0\b/.test(txt),
-    "| tipos de lance:", /Brilhante/.test(txt) && /Impreciso/.test(txt));
-  console.log("números e data no formato pt-BR:", /96,2/.test(txt) && /02\/11\/1858/.test(txt),
-    "| trechos:", (txt.match(/9\d,\d|8\d,\d|\d\d\/\d\d\/\d{4}/g) || []).join(" "));
+  conf("a imagem mostra o nome do app e os tipos de lance",
+    /Plyscope/.test(txt) && /Brilhante/.test(txt) && /Impreciso/.test(txt));
+  if (OPERA) {
+    conf("a imagem mostra os dois jogadores e a precisão de cada um",
+      txt.indexOf("Paul Morphy") >= 0 && /Duque Karl/.test(txt) &&
+      /precisão \(%\)/.test(txt) && /\b96,2\b/.test(txt) && /\b83,0\b/.test(txt));
+    conf("números e data no formato pt-BR", /96,2/.test(txt) && /02\/11\/1858/.test(txt),
+      "| trechos: " + (txt.match(/9\d,\d|8\d,\d|\d\d\/\d\d\/\d{4}/g) || []).join(" "));
+  }
 
   /* ================= armazenamento com problema ================= */
   console.log("\n== armazenamento recusando gravação ==");
@@ -413,18 +495,21 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   try { window.document.querySelector("#savedList [data-del]").click(); } catch (e) { quebrou = true; }
   await wait(50);
   proto.setItem = setReal; proto.removeItem = remReal;
-  console.log("QuotaExceededError derrubou o app:", quebrou,
-    "| registro intacto:", JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length === 1,
-    "| aviso:", $("toast").textContent);
-  console.log("navegação continua funcionando:", ($("btnNext").click(), true),
-    "| lances na lista:", window.document.querySelectorAll(".mv").length);
+  conf("QuotaExceededError não derruba o app e não perde o registro",
+    !quebrou && JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length === 1,
+    "| aviso: " + $("toast").textContent);
+  $("btnNext").click();
+  conf("navegação continua funcionando depois do erro de gravação",
+    window.document.querySelectorAll(".mv").length === nMoves);
 
   /* ================= apagar ================= */
   window.document.querySelector("#savedList [data-del]").click(); await wait(50);
   console.log("\n== apagar ==");
-  console.log("registros após apagar:", JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length,
-    "| itens na lista:", window.document.querySelectorAll("#savedList .saved").length,
-    "| aviso:", $("savedHint").textContent.slice(0, 30) + "…");
+  conf("apagar tira o registro do armazenamento e da lista",
+    JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length === 0
+    && window.document.querySelectorAll("#savedList .saved").length === 0
+    && $("savedHint").textContent.trim().length > 0,
+    "| aviso: " + $("savedHint").textContent.slice(0, 30) + "…");
 
   /* ================= perspectiva do tabuleiro ================= */
   console.log("\n== perspectiva de quem está estudando ==");
@@ -440,24 +525,27 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const lados = () => $("nmBot").textContent + " embaixo / " + $("nmTop").textContent + " em cima";
 
   await abrir(partida("Paul Morphy", "Duque Karl"));
-  console.log("sem usuário guardado — girado:", girado(), "|", lados());
+  conf("sem usuário guardado o tabuleiro não gira", girado() === false, "| " + lados());
 
   // é na busca online que a pessoa diz quem é; o nome fica guardado
   $("userBox").value = "MinhaConta";
   $("btnFetch").click(); await wait(120);
-  console.log("nome guardado no navegador:",
-    JSON.stringify(window.localStorage.getItem("plyscope.usuario")));
+  conf("o nome digitado na busca fica guardado no navegador",
+    window.localStorage.getItem("plyscope.usuario") === "MinhaConta",
+    "| " + JSON.stringify(window.localStorage.getItem("plyscope.usuario")));
 
   await abrir(partida("Magnus", "minhaconta"));   // maiúsculas não importam
-  console.log("usuário das pretas — girado:", girado(), "| nomes nos lados certos:",
-    $("nmBot").textContent === "minhaconta" && $("nmTop").textContent === "Magnus", "|", lados());
+  conf("usuário das pretas: gira, e os nomes trocam de lado",
+    girado() === true && $("nmBot").textContent === "minhaconta"
+    && $("nmTop").textContent === "Magnus", "| " + lados());
 
   await abrir(partida("MINHACONTA", "Magnus"));
-  console.log("usuário das brancas — girado:", girado(), "| nomes nos lados certos:",
-    $("nmBot").textContent === "MINHACONTA" && $("nmTop").textContent === "Magnus", "|", lados());
+  conf("usuário das brancas: não gira",
+    girado() === false && $("nmBot").textContent === "MINHACONTA"
+    && $("nmTop").textContent === "Magnus", "| " + lados());
 
   await abrir(partida("Paul Morphy", "Duque Karl"));
-  console.log("partida de terceiros — girado:", girado(), "|", lados());
+  conf("partida de terceiros: não gira", girado() === false, "| " + lados());
 
   // escolha manual manda: navegar, trocar de idioma e reabrir não desfazem
   $("btnFlip").click(); await wait(50);
@@ -465,12 +553,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   $("btnNext").click(); $("btnEnd").click(); await wait(80);
   const aposNavegar = girado();
   $("btnLangEn").click(); await wait(80); $("btnLangPt").click(); await wait(80);
-  console.log("giro manual mantido — ao girar:", manual, "| navegando:", aposNavegar,
-    "| trocando de idioma:", girado());
+  conf("giro manual manda: navegar e trocar de idioma não desfazem",
+    manual === true && aposNavegar === true && girado() === true);
 
   // partida nova recomeça a decisão (aqui, de novo, ninguém reconhecido)
   await abrir(partida("Paul Morphy", "Duque Karl"));
-  console.log("partida nova zera a escolha manual — girado:", girado());
+  conf("partida nova recomeça a decisão da perspectiva", girado() === false);
 
   /* ================= peças deslizando =================
      O jsdom não roda CSS: o que dá para provar aqui é que os elementos <use>
@@ -514,8 +602,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   };
   const abrirPgn = async (pgn) => { $("pgnBox").value = pgn; $("btnLoadPgn").click(); await wait(200); };
   const andar = async (btn, ms) => { $(btn).click(); await wait(ms === undefined ? MS : ms); };
-  const ok = [];
-  const conf = (rot, cond, extra) => { ok.push(!!cond); console.log(" ", (cond ? "ok  " : "FALHOU ") + rot, extra === undefined ? "" : extra); };
+  const okAntesAnim = ok.length;
 
   /* --- 1) um lance para frente: desliza quem moveu, ninguém é recriado --- */
   const PGN_A = '[Event "t"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. O-O Nf6 5. Nxe5 Nxe5 1/2-1/2';
@@ -648,21 +735,23 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   if (mmReal) window.matchMedia = mmReal; else delete window.matchMedia;
   await wait(MS);
 
-  console.log("  animação das peças:", ok.every(Boolean) ? "OK" : "FALHOU (" + ok.filter((x) => !x).length + " de " + ok.length + ")");
+  const anims = ok.slice(okAntesAnim);
+  console.log("  animação das peças:", anims.every(Boolean) ? "OK"
+    : "FALHOU (" + anims.filter((x) => !x).length + " de " + anims.length + ")");
 
   /* ================= treino: aprenda com seus erros =================
      A partida da Ópera não tem Erro nem Capivarada (o Duque só foi
      impreciso), então o treino é exercitado numa segunda partida: o
      final da Imortal, que começa por um FEN e tem erro dos dois lados. */
   console.log("\n== treino: aprenda com seus erros ==");
-  const t1 = (el) => (el || { textContent: "" }).textContent.replace(/\s+/g, " ").trim();
   const errosDaTela = () => [...window.document.querySelectorAll(".mv")]
     .filter((e) => /^(Erro|Capivarada)$/.test(t1(e.querySelector(".ic title"))))
     .map((e) => +e.dataset.ply);
 
   window.document.querySelector('[data-tab="report"]').click();
-  console.log("partida sem erro grave — na lista:", errosDaTela().length,
-    "| chamada no relatório:", $("btnTrainStart") ? t1($("btnTrainStart")) : "(nenhuma, como esperado)");
+  conf("partida sem Erro nem Capivarada não oferece treino",
+    errosDaTela().length === 0 && !$("btnTrainStart"),
+    "| erros na lista: " + errosDaTela().length);
 
   const PGN_TREINO = `[Event "A Imortal (final)"]
 [Site "Londres"]
@@ -683,6 +772,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   while ($("btnAnalyze").textContent !== ROTULO_ANALISAR && Date.now() - tT < 600000) await wait(500);
   console.log("partida de treino analisada em", ((Date.now() - tT) / 1000).toFixed(1) + "s",
     "| lances:", window.document.querySelectorAll(".mv").length);
+  conf("a partida de treino (final da Imortal) analisou os 15 meios-lances",
+    window.document.querySelectorAll(".mv").length === 15);
 
   /* gabarito lido da própria tela: seta azul = melhor lance da posição,
      realce amarelo = lance jogado na partida. Nada de espiar o estado. */
@@ -720,8 +811,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     $("btnPrev").click();
     return { ply, jogado, melhor: setaDe("#5f90b8") };
   });
-  console.log("gabarito lido do tabuleiro:",
-    gab.map((g) => g.ply + ":" + (g.melhor ? g.melhor.de + g.melhor.para : "?")).join(" "));
+  conf("o gabarito sai do próprio tabuleiro (seta azul), sem espiar o estado",
+    gab.length > 0 && gab.every((g) => g.melhor && g.jogado),
+    "| " + gab.map((g) => g.ply + ":" + (g.melhor ? g.melhor.de + g.melhor.para : "?")).join(" "));
 
   const contaRel = {};
   [...window.document.querySelectorAll(".report-grid .r")].forEach((r) => {
@@ -730,62 +822,73 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const alvo = (contaRel["Erro"] || 0) + (contaRel["Capivarada"] || 0);
 
   window.document.querySelector('[data-tab="report"]').click();
-  console.log("chamada no relatório:", t1($("btnTrainStart")));
+  conf("com erros na partida, o relatório chama para o treino",
+    !!$("btnTrainStart") && t1($("btnTrainStart")).length > 0, "| " + t1($("btnTrainStart")));
   const goTreino = buscasNoMotor;
   $("btnTrainStart").click(); await wait(80);
   const naFila = +(t1($("trainCount")).match(/(\d+)\s*$/) || [0, 0])[1];
-  console.log("entrou no treino — painel:", $("panelTrain").style.display === "",
-    "| abas dão lugar a ele:", window.document.querySelector(".panel-main").style.display === "none",
-    "| contador:", t1($("trainCount")));
-  console.log("fila:", naFila, "| Erro+Capivarada no relatório:", alvo,
-    "| selos na lista de lances:", plies.length, "| bate:", naFila === alvo && naFila === plies.length);
-  console.log("posição do 1º erro — girado para quem joga:", viradoT(),
-    "| lance do adversário realçado:", JSON.stringify(realceDoUltimo()),
-    "| sem seta entregando o gabarito:", $("gArrows").childNodes.length === 0);
+  conf("entrar no treino abre o painel e recolhe as abas",
+    $("panelTrain").style.display === ""
+    && window.document.querySelector(".panel-main").style.display === "none",
+    "| contador: " + t1($("trainCount")));
+  conf("a fila do treino bate com o relatório e com os selos da lista",
+    naFila === alvo && naFila === plies.length,
+    "| fila " + naFila + " · relatório " + alvo + " · selos " + plies.length);
+  conf("o exercício abre na posição do erro, sem entregar a resposta",
+    !!realceDoUltimo() && $("gArrows").childNodes.length === 0,
+    "| lance do adversário realçado: " + JSON.stringify(realceDoUltimo()));
+  conf("o enunciado explica o que fazer", t1($("trainBody")).length > 20);
   console.log("enunciado:", t1($("trainBody")).slice(0, 150));
 
   /* ---- 1º item: erra, pede dica, pede a resposta ---- */
   clicarCasa(gab[0].jogado.de); await wait(20);
   clicarCasa(gab[0].jogado.para); await wait(80);
-  console.log("\njogou o lance da partida (errado) —", t1(window.document.querySelector(".train-note.bad")));
-  console.log("  não avançou:", t1($("trainCount")), "| tentar de novo:", !!$("btnTrainRetry"),
-    "| dica:", !!$("btnTrainHint"), "| ver a resposta:", !!$("btnTrainShow"));
+  conf("jogar o lance da partida (o errado) é recusado",
+    !!window.document.querySelector(".train-note.bad"),
+    "| " + t1(window.document.querySelector(".train-note.bad")));
+  conf("errar não avança a fila e oferece tentar de novo, dica e resposta",
+    !!$("btnTrainRetry") && !!$("btnTrainHint") && !!$("btnTrainShow"),
+    "| " + t1($("trainCount")));
   await wait(700);
   console.log("  o lance errado sai do tabuleiro sozinho:",
     $("gPieces").childNodes.length, "peças, vez de quem errou de novo");
   $("btnTrainRetry").click(); await wait(40);
-  console.log("  tentar de novo limpa o aviso:", !window.document.querySelector(".train-note.bad"),
-    "| segue em", t1($("trainCount")));
+  conf("tentar de novo limpa o aviso", !window.document.querySelector(".train-note.bad"),
+    "| segue em " + t1($("trainCount")));
   $("btnTrainHint").click(); await wait(30);
-  console.log("  dica:", (t1($("trainBody")).match(/A peça certa[^.]*\./) || ["(nenhuma)"])[0],
-    "| sem dizer a casa:", !/[a-h][1-8]/.test((t1($("trainBody")).match(/A peça certa[^.]*\./) || [""])[0]));
+  const dica = (t1($("trainBody")).match(/A peça certa[^.]*\./) || [""])[0];
+  conf("a dica diz a peça e não entrega a casa",
+    dica.length > 0 && !/[a-h][1-8]/.test(dica), "| " + (dica || "(nenhuma)"));
   $("btnTrainShow").click(); await wait(60);
   const passos0 = window.document.querySelectorAll(".train-line span.on").length;
-  console.log("  resposta:", t1(window.document.querySelector(".train-note.good")),
-    "| continuação:", t1(window.document.querySelector(".train-line")));
+  conf("ver a resposta mostra o melhor lance e a continuação",
+    !!window.document.querySelector(".train-note.good") && !!window.document.querySelector(".train-line"),
+    "| " + t1(window.document.querySelector(".train-line")));
   await wait(2000);
-  console.log("  a continuação anda sozinha:", passos0, "→",
-    window.document.querySelectorAll(".train-line span.on").length, "meios-lances no tabuleiro",
-    "| peças:", $("gPieces").childNodes.length);
+  const passos1 = window.document.querySelectorAll(".train-line span.on").length;
+  conf("a continuação anda sozinha no tabuleiro", passos1 > passos0,
+    "| " + passos0 + " → " + passos1 + " meios-lances");
   $("btnTrainNext").click(); await wait(60);
-  console.log("  próximo:", t1($("trainCount")));
+  conf("o botão leva ao próximo exercício", /2\D+\d/.test(t1($("trainCount"))), "| " + t1($("trainCount")));
 
   /* ---- 2º item: acerta ---- */
   clicarCasa(gab[1].melhor.de); await wait(20);
   clicarCasa(gab[1].melhor.para); await wait(80);
-  console.log("\nacertou o melhor lance —", t1(window.document.querySelector(".train-note.good")));
-  console.log("  mostra a continuação:", !!window.document.querySelector(".train-line"),
-    "|", t1(window.document.querySelector(".train-line")),
-    "| botão:", t1($("btnTrainNext")));
+  conf("acertar o melhor lance é reconhecido e mostra a continuação",
+    !!window.document.querySelector(".train-note.good") && !!window.document.querySelector(".train-line"),
+    "| " + t1(window.document.querySelector(".train-line")));
 
   /* ---- troca de idioma no meio do exercício ---- */
   $("btnLangEn").click(); await wait(90);
   console.log("\nem inglês no meio do treino:", t1($("trainBody")).slice(0, 130));
-  console.log("  cabeçalho:", t1($("panelTrain").querySelector(".train-head b")), "|", t1($("trainCount")),
-    "|", t1($("btnTrainExit")), "| mesmo item, continuação intacta:",
-    !!window.document.querySelector(".train-line"));
+  conf("trocar de idioma no meio do treino traduz sem perder o item",
+    /[A-Za-z]/.test(t1($("trainCount"))) && !/de\s/.test(t1($("btnTrainExit")))
+    && !!window.document.querySelector(".train-line"),
+    "| " + t1($("trainCount")) + " | " + t1($("btnTrainExit")));
   $("btnLangPt").click(); await wait(60);
-  console.log("  de volta ao português:", t1($("trainCount")), "|", t1($("btnTrainNext")));
+  conf("de volta ao português o treino continua no mesmo item",
+    !!window.document.querySelector(".train-line") && t1($("trainCount")).length > 0,
+    "| " + t1($("trainCount")) + " | " + t1($("btnTrainNext")));
 
   /* ---- resto da fila na base do "ver a resposta" ---- */
   let voltas = 0;
@@ -795,19 +898,24 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   const somas = [...window.document.querySelectorAll(".train-sum .v")].map((e) => +e.textContent);
   console.log("\nresumo:", t1($("trainCount")), "|", t1($("trainBody")).slice(0, 120));
-  console.log("  de primeira / com dica / passou batido:", somas.join(" / "),
-    "| soma bate com a fila:", somas.reduce((a, b) => a + b, 0) === naFila);
+  conf("no fim, o placar fecha com o tamanho da fila",
+    somas.length === 3 && somas.reduce((a, b) => a + b, 0) === naFila,
+    "| de primeira / com dica / passou batido: " + somas.join(" / "));
   $("btnTrainRedo").click(); await wait(60);
-  console.log("  refazer só os que faltaram:", t1($("trainCount")), "| esperado", naFila - 1);
+  conf("refazer volta só com os que faltaram",
+    t1($("trainCount")).indexOf(String(naFila - 1)) >= 0,
+    "| " + t1($("trainCount")) + " | esperado " + (naFila - 1));
 
   /* ---- sair: a análise continua onde estava ---- */
   $("btnTrainExit").click(); await wait(60);
-  console.log("\nsaiu do treino — painel fechado:", $("panelTrain").style.display === "none",
-    "| abas de volta:", window.document.querySelector(".panel-main").style.display === "");
-  console.log("  análise intacta — selos:", window.document.querySelectorAll(".mv .ic").length,
-    "| precisão:", [...window.document.querySelectorAll(".accbox .v")].map((e) => e.textContent).join(" / "),
-    "| chamada do treino de novo:", t1($("btnTrainStart")),
-    "| buscas no motor no treino inteiro:", buscasNoMotor - goTreino);
+  conf("sair do treino fecha o painel e devolve as abas",
+    $("panelTrain").style.display === "none"
+    && window.document.querySelector(".panel-main").style.display === "");
+  conf("a análise continua onde estava e o treino inteiro não usou o motor",
+    window.document.querySelectorAll(".mv .ic").length === 15
+    && buscasNoMotor - goTreino === 0 && !!$("btnTrainStart"),
+    "| precisão: " + [...window.document.querySelectorAll(".accbox .v")].map((e) => e.textContent).join(" / ") +
+    " | buscas: " + (buscasNoMotor - goTreino));
 
   /* ---- o que o treino custou no registro salvo ---- */
   const recT = JSON.parse(window.localStorage.getItem(CHAVE) || "[]")[0] || {};
@@ -829,9 +937,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const goSalva = buscasNoMotor;
   $("btnTrainStart").click(); await wait(60);
   $("btnTrainShow").click(); await wait(60);
-  console.log("\nanálise salva reaberta — treino:", t1($("trainCount")),
-    "| continuação guardada:", t1(window.document.querySelector(".train-line")) || "(nenhuma)");
-  console.log("  buscas no motor:", buscasNoMotor - goSalva);
+  conf("reabrir a análise salva devolve o treino com a continuação guardada",
+    !!window.document.querySelector(".train-line") && buscasNoMotor - goSalva === 0,
+    "| " + t1($("trainCount")) + " | " + (t1(window.document.querySelector(".train-line")) || "(nenhuma)"));
   $("btnTrainExit").click(); await wait(40);
 
   /* ---- registro de versão anterior: sem pvt, o treino continua de pé ---- */
@@ -843,11 +951,10 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   $("btnTrainStart").click(); await wait(60);
   clicarCasa(gab[0].melhor.de); await wait(20);
   clicarCasa(gab[0].melhor.para); await wait(80);
-  console.log("\nregistro antigo (sem pv) —", t1(window.document.querySelector(".train-note.good")),
-    "| continuação:", window.document.querySelector(".train-line") ? "sim" : "não",
-    "| explica:", t1($("trainBody")).indexOf("versão anterior") >= 0);
-  console.log("  o exercício funciona igual:", !!$("btnTrainNext"),
-    "| buscas no motor:", buscasNoMotor - goSalva);
+  conf("registro de versão anterior (sem pv): o treino funciona e explica a falta",
+    !!window.document.querySelector(".train-note.good") && !window.document.querySelector(".train-line")
+    && t1($("trainBody")).indexOf("versão anterior") >= 0 && !!$("btnTrainNext")
+    && buscasNoMotor - goSalva === 0);
   $("btnTrainExit").click(); await wait(40);
 
   /* ---- perspectiva conhecida: só os erros do usuário entram na fila ---- */
@@ -856,15 +963,25 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   window.localStorage.setItem(CHAVE, JSON.stringify(listaU));
   window.document.querySelector('[data-tab="import"]').click();
   window.document.querySelector("#savedList [data-open]").click(); await wait(200);
-  console.log("\nperspectiva conhecida (Anderssen, das brancas) — chamada:", t1($("btnTrainStart")));
+  conf("com perspectiva conhecida, a chamada já anuncia só os erros dele",
+    /2/.test(t1($("btnTrainStart"))), "| " + t1($("btnTrainStart")));
   $("btnTrainStart").click(); await wait(60);
-  console.log("  fila só com os erros dele:", t1($("trainCount")),
-    "| em segunda pessoa:", t1($("trainBody")).slice(0, 110));
+  conf("a fila fica só com os erros do usuário, em segunda pessoa",
+    /\b2\b/.test(t1($("trainCount"))) && /Você jogou/.test(t1($("trainBody"))),
+    "| " + t1($("trainCount")));
   $("btnTrainExit").click(); await wait(40);
 
   $("btnCopyFen").click(); $("btnCopyPgn").click(); await wait(50);
-  console.log("copiar sem clipboard:", $("toast").textContent);
+  conf("copiar sem clipboard avisa em vez de quebrar", $("toast").textContent.length > 0,
+    "| " + $("toast").textContent);
   ["import","report","moves","engine"].forEach((t) => window.document.querySelector('[data-tab="'+t+'"]').click());
+  conf("as quatro abas abrem", ["import","report","moves","engine"].every((t) =>
+    !!window.document.querySelector('[data-tab="'+t+'"]')));
   console.log("abas OK");
-  process.exit(0);
+
+  /* ---------- o veredito ---------- */
+  const falhas = ok.filter((x) => !x).length;
+  console.log("\n== resumo ==");
+  console.log(ok.length + " asserções, " + falhas + " falhas");
+  process.exit(falhas ? 1 : 0);
 })();

@@ -5,21 +5,9 @@ const path = require("path");
 const ROOT = path.resolve(__dirname, "..");
 const OUT = process.env.PLYSCOPE_OUT || path.join(__dirname, "saida");
 const BENCH = process.env.PLYSCOPE_BENCH || path.join(OUT, "bench.json");
-const APP = path.join(ROOT, "src", "app.js");
 
-function loadPure() {
-  const src = fs.readFileSync(APP, "utf8");
-  const cut = (a, b) => { const i = src.indexOf(a), j = src.indexOf(b, i); return src.slice(i, j); };
-  const bloco = [
-    cut("const CLS = {", "const CLS_ORDER"),
-    "const CLS_ORDER = Object.keys(CLS).sort((a,b)=>CLS[a].ord-CLS[b].ord);",
-    cut("function scoreToCp(", "function fmtEval("),
-    cut("/* ---------- SEE simplificado", "/* ============================================================\n   Classificação de lances"),
-    "return { classifyMove, BRI, PV_VAL };",
-  ].join("\n");
-  return new Function("Chess", bloco)(Chess);
-}
-const P = loadPure();
+/* a lógica pura, o mesmo módulo que roda no navegador (ver src/classify.js) */
+const P = require(path.join(ROOT, "src", "classify.js"));
 
 /* ---- enriquece com "recaptura" (o calibrar já grava; isto cobre cache antigo) ---- */
 const bench = JSON.parse(fs.readFileSync(BENCH, "utf8"));

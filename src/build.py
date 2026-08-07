@@ -5,8 +5,8 @@ sprite de peças e toda a lógica de análise.
 
     python src/build.py        (ou: cd src && python build.py)
 
-Entradas:  src/shell.html, src/i18n.js, src/app.js, src/vendor/chess.esm.js,
-           src/assets/pieces.svg, src/data/openings.js
+Entradas:  src/shell.html, src/i18n.js, src/classify.js, src/app.js,
+           src/vendor/chess.esm.js, src/assets/pieces.svg, src/data/openings.js
 Saída:     index.html (na raiz do projeto)
 """
 import re
@@ -42,9 +42,13 @@ i18n = (SRC / "i18n.js").read_text(encoding="utf-8")
 # --- base de aberturas ECO (gerada por tools/gerar-aberturas.js) ---
 openings = (SRC / "data" / "openings.js").read_text(encoding="utf-8")
 
+# --- lógica pura de classificação (o mesmo módulo que roda em Node) ---
+classify = (SRC / "classify.js").read_text(encoding="utf-8")
+
 out = shell.replace("<!--__PIECES__-->", "\n".join(groups))
 out = out.replace("/*__CHESSJS__*/", cj)
 out = out.replace("/*__OPENINGS__*/", openings)
+out = out.replace("/*__CLASSIFY__*/", classify)
 out = out.replace("/*__I18N__*/", i18n)
 out = out.replace("/*__APP__*/", app)
 DEST.write_text(out, encoding="utf-8")
