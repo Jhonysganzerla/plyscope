@@ -16,17 +16,20 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Reconstruir o index.html
+      # O build.py gera três arquivos que precisam andar juntos: o index.html e
+      # a política que libera os <script> dele por hash (vercel.json e _headers).
+      # Comitar um sem o outro publica um site que o próprio CSP bloqueia.
+      - name: Reconstruir o index.html e a política
         run: python3 src/build.py
 
       - name: Conferir se o commit tem o build atual
         run: |
-          if ! git diff --quiet -- index.html; then
-            echo "::error::O index.html commitado não bate com src/. Rode 'python3 src/build.py' e comite o resultado."
-            git diff --stat -- index.html
+          if ! git diff --quiet -- index.html vercel.json _headers; then
+            echo "::error::O build commitado não bate com src/. Rode 'python3 src/build.py' e comite o resultado."
+            git diff --stat -- index.html vercel.json _headers
             exit 1
           fi
-          echo "index.html está em dia."
+          echo "index.html, vercel.json e _headers estão em dia."
 
   testes:
     name: testes
@@ -54,6 +57,11 @@ jobs:
       # roda no CI sem baixar nada: jsdom + o motor de verdade, ~40 s.
       - name: Reconstruir o index.html
         run: python3 src/build.py
+
+      # depois do build, senão os hashes conferidos são os do build anterior
+      - name: Política de segurança de conteúdo (CSP)
+        working-directory: tools
+        run: node test-csp.js
 
       - name: Teste de ponta a ponta (jsdom + Stockfish real)
         working-directory: tools

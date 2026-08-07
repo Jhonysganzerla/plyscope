@@ -6,6 +6,11 @@
 # o SharedArrayBuffer e, com ele, o Stockfish multi-thread. Eles nao atrapalham
 # as buscas no Chess.com e no Lichess: o COEP so barra requisicoes "no-cors", e
 # o fetch do app roda em modo "cors" (as duas APIs mandam Access-Control-Allow-Origin).
+#
+# Manda tambem o Content-Security-Policy lido do _headers, o mesmo arquivo que o
+# src/build.py gera com os hashes dos <script> inline. Local e publicado rodam
+# sob a mesma politica de proposito: um erro de CSP tem que aparecer aqui, na
+# maquina de quem programa, e nao so depois do deploy.
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
@@ -16,6 +21,21 @@ $mime = @{
   ".png"="image/png";                 ".ico"="image/x-icon";
   ".pgn"="text/plain; charset=utf-8";  ".txt"="text/plain; charset=utf-8";
   ".map"="application/json"
+}
+
+# Uma copia so da politica, no _headers, para o servidor local e a hospedagem
+# nao poderem divergir. Repetir a string aqui dentro seria pedir para ficar
+# velha. -like nao diferencia maiusculas de minusculas no PowerShell.
+$csp = $null
+$arqHeaders = Join-Path $root "_headers"
+if (Test-Path -LiteralPath $arqHeaders -PathType Leaf) {
+  foreach ($linha in (Get-Content -LiteralPath $arqHeaders -Encoding UTF8)) {
+    $t = $linha.Trim()
+    if ($t -like "Content-Security-Policy:*") {
+      $csp = $t.Substring($t.IndexOf(":") + 1).Trim()
+      break
+    }
+  }
 }
 
 $listener = $null
@@ -43,6 +63,12 @@ Write-Host ""
 Write-Host "  Plyscope rodando em $url" -ForegroundColor Green
 Write-Host "  Deixe esta janela aberta enquanto usar o app."
 Write-Host "  Para encerrar: feche a janela ou pressione Ctrl+C."
+if (-not $csp) {
+  Write-Host ""
+  Write-Host "  AVISO: nao achei o Content-Security-Policy no _headers." -ForegroundColor Yellow
+  Write-Host "  Rode 'python src\build.py'; sem isso o app roda aqui com regras"
+  Write-Host "  mais frouxas do que no site publicado."
+}
 Write-Host ""
 Start-Process $url
 
@@ -51,7 +77,8 @@ while ($listener.IsListening) {
     $ctx = $listener.GetContext()
     $ctx.Response.Headers.Add("Cross-Origin-Opener-Policy", "same-origin")
     $ctx.Response.Headers.Add("Cross-Origin-Embedder-Policy", "require-corp")
-    $rel = [System.Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath.TrimStart("/"))
+    if ($csp) { $ctx.Response.Headers.Add("Content-Security-Policy", $csp) }
+    $rel =[System.Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath.TrimStart("/"))
     if ([string]::IsNullOrWhiteSpace($rel)) { $rel = "index.html" }
     $path = Join-Path $root $rel
     $full = [System.IO.Path]::GetFullPath($path)
