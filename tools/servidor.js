@@ -31,6 +31,23 @@ const MIME = {
   ".map": "application/json",
 };
 
+/* Le o Content-Security-Policy do _headers gerado pelo src/build.py — a mesma
+ * politica que a hospedagem manda. Uma copia so, para local e publicado nao
+ * poderem divergir. */
+function leCsp() {
+  try {
+    const txt = fs.readFileSync(path.join(ROOT, "_headers"), "utf8");
+    for (const linha of txt.split("\n")) {
+      const t = linha.trim();
+      if (t.toLowerCase().startsWith("content-security-policy:")) {
+        return t.slice(t.indexOf(":") + 1).trim();
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+const CSP = leCsp();
+
 const args = process.argv.slice(2);
 const abrir = args.indexOf("--sem-navegador") < 0 && process.env.PLYSCOPE_SEM_NAVEGADOR !== "1";
 const pedida = args.filter((a) => /^\d+$/.test(a)).map(Number);
@@ -40,6 +57,7 @@ const srv = http.createServer((req, res) => {
   // COOP + COEP: ligam o cross-origin isolation (SharedArrayBuffer -> multi-thread).
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  if (CSP) res.setHeader("Content-Security-Policy", CSP);
   res.setHeader("Cache-Control", "no-cache");
 
   let rel;
@@ -84,6 +102,12 @@ srv.on("listening", () => {
   console.log("  Plyscope rodando em " + url);
   console.log("  Deixe este terminal aberto enquanto usar o app.");
   console.log("  Para encerrar: Ctrl+C.");
+  if (!CSP) {
+    console.log("");
+    console.log("  AVISO: nao achei o Content-Security-Policy no _headers.");
+    console.log("  Rode 'python3 src/build.py'; sem isso o app roda aqui com regras");
+    console.log("  mais frouxas do que no site publicado.");
+  }
   console.log("");
   if (!abrir) return;
   const cmd = process.platform === "darwin" ? "open"

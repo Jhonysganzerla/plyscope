@@ -11,7 +11,18 @@ npm install        # chess.js e jsdom
 
 Chamados pelo `plyscope.sh` (e pelo `Abrir Plyscope.command`), não diretamente. São o equivalente do `servidor.ps1` do Windows: servem a pasta do projeto em `http://localhost:8123` com os cabeçalhos `Cross-Origin-Opener-Policy: same-origin` e `Cross-Origin-Embedder-Policy: require-corp`, que ligam o Stockfish multi-thread, e com `application/wasm` no `.wasm`.
 
+Mandam também o `Content-Security-Policy`, lido do `_headers` que o `src/build.py` gera — a mesma política do site publicado, para um erro de CSP aparecer aqui e não depois do deploy. Se o `_headers` não existir, eles avisam no terminal e servem sem CSP.
+
 O `servidor.py` é o caminho normal (Python 3); o `servidor.js` é o plano B para máquinas sem Python 3. Os dois aceitam `[porta]` e `--sem-navegador`.
+
+## `test-csp.js` — teste da política de segurança de conteúdo
+
+```bash
+python3 ../src/build.py      # sempre antes: o teste confere o build atual
+node test-csp.js
+```
+
+Recalcula o SHA-256 de cada `<script>` inline do `index.html` e confere contra os hashes que o `vercel.json` e o `_headers` declaram; extrai do código as origens de `fetch`, o caminho do Worker do motor e os usos de `data:`, e confere cada um contra as diretivas; e sobe o `servidor.js` e o `servidor.py` de verdade para conferir por HTTP que mandam a mesma política. Do `servidor.ps1` faz revisão estática (PowerShell não roda fora do Windows). Leva uns 3 s. A explicação diretiva por diretiva está em `docs/PUBLICAR.md`.
 
 ## `test.js` — teste funcional
 

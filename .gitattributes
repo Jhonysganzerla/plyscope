@@ -18,3 +18,10 @@ engine/stockfish-lite.js          linguist-vendored=true
 *.sh      text eol=lf
 *.command text eol=lf
 *.py      text eol=lf
+
+# O CSP libera os <script> inline do index.html por hash SHA-256, calculado
+# sobre os bytes do arquivo. Se um clone no Windows (core.autocrlf=true)
+# trocasse LF por CRLF, todo bloco de script mudaria de hash e o navegador
+# bloquearia o app inteiro. Estes arquivos são LF em qualquer sistema.
+*.html    text eol=lf
+_headers  text eol=lf
