@@ -4,8 +4,27 @@ Fora o `servidor.py` e o `servidor.js`, nada aqui é necessário para *usar* o P
 
 ```bash
 cd tools
-npm install        # chess.js e jsdom
+npm install        # chess.js, jsdom e o ESLint
 ```
+
+## `npm run lint` — o ESLint
+
+```bash
+cd tools && npm run lint      # roda sobre o repositório inteiro (eslint ..)
+```
+
+Detector de defeito, não formatador: variável não usada, `==`, sombra,
+`console` esquecido no app, atribuição sem leitor. Não há Prettier e não vai
+haver — reformatar o que já funciona só apaga o `git blame`.
+
+A configuração fica na raiz, em `eslint.config.js`, com o motivo de cada
+decisão comentado ao lado: por que `src/*.js` é *script* e não módulo, por que
+os globais do navegador estão listados um a um, por que `catch (e) {}` é
+permitido aqui e por que `index.html` (gerado), `engine/` e `src/vendor/`
+ficam de fora.
+
+Ainda **não** roda no CI: há apontamentos antigos abertos em `src/` e em
+algumas suítes. A régua enquanto isso é não deixar a lista crescer.
 
 ## `servidor.py` e `servidor.js` — servidor local do macOS e do Linux
 

@@ -292,14 +292,16 @@ function objJs(o, ind) {
   const pad = " ".repeat(ind);
   const itens = Object.entries(o).map(([k, v]) =>
     JSON.stringify(k) + ":" + JSON.stringify(v));
-  const linhas = [];
+  // nome próprio: o `linhas` de fora é a lista de posições ECO, e sombreá-lo
+  // aqui dentro deixava duas coisas diferentes com o mesmo nome no mesmo arquivo.
+  const quebradas = [];
   let l = "";
   for (const it of itens) {
-    if (l && l.length + it.length + 2 > 92) { linhas.push(l + ","); l = ""; }
+    if (l && l.length + it.length + 2 > 92) { quebradas.push(l + ","); l = ""; }
     l = l ? l + ", " + it : it;
   }
-  if (l) linhas.push(l);
-  return "{\n" + linhas.map((x) => pad + "  " + x).join("\n") + "\n" + pad + "}";
+  if (l) quebradas.push(l);
+  return "{\n" + quebradas.map((x) => pad + "  " + x).join("\n") + "\n" + pad + "}";
 }
 
 const saida = `/* Base de aberturas ECO — gerada por tools/gerar-aberturas.js, não edite à mão.

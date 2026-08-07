@@ -24,7 +24,29 @@
   <a href="#license">GPLv3 license</a>
 </p>
 
-<!-- screenshot -->
+<!--
+  SHOT 1 — the board with the move badges, the best-move arrow and the graph.
+  Once docs/img/tela-tabuleiro-en.png exists, replace the block below with:
+
+  <p align="center">
+    <img src="docs/img/tela-tabuleiro-en.png" width="900"
+         alt="Plyscope: the board with a badge on the played move, the best-move arrow and the advantage graph">
+  </p>
+
+  Capture guide (which game, what resolution, what has to be visible):
+  docs/img/COMO-TIRAR.md
+-->
+<p align="center">
+  <sub>
+    <b>No screenshot yet.</b> No mockups here — and no real capture of the app
+    has been taken yet.<br>
+    The honest way to see it: <a href="https://plyscope.vercel.app/">open Plyscope</a>,
+    paste a PGN and look. Nothing to install.<br>
+    Want to help with the shots? The guide is in
+    <a href="docs/img/COMO-TIRAR.md"><code>docs/img/COMO-TIRAR.md</code></a>
+    (written in Portuguese).
+  </sub>
+</p>
 
 ---
 
@@ -69,7 +91,22 @@ A move only gets the badge after passing four questions:
 
 Before the verdict, every sacrifice candidate is **re-analyzed at greater depth**, because that is exactly where a shallow analysis gets it wrong: the move looks like a mistake until the engine sees the continuation.
 
-<!-- screenshot -->
+<!--
+  SHOT 2 — the Report panel: opening, accuracy for both players, move-type
+  counts and key moments. Once the file exists, replace the block below with:
+
+  <p align="center">
+    <img src="docs/img/tela-relatorio-en.png" width="900"
+         alt="Plyscope's Report panel: accuracy for both players, counts by move type and the game's key moments">
+  </p>
+-->
+<p align="center">
+  <sub>
+    A capture of the <b>Report panel</b> goes here — accuracy for both players,
+    counts by move type and the game's key moments.
+    How to take it: <a href="docs/img/COMO-TIRAR.md"><code>docs/img/COMO-TIRAR.md</code></a>.
+  </sub>
+</p>
 
 ## Features
 
@@ -109,7 +146,25 @@ Before the verdict, every sacrifice candidate is **re-analyzed at greater depth*
 - Numbers in each language's format (`96,2%` × `96.2%`, `1,2 s` × `1.2s`), dates likewise, and opening names in both languages — chess notation (SAN/FEN/PGN/ECO) is never translated.
 - The worst-move badge reads **Blunder** in English and **Capivarada** — the project's own Brazilian joke — in Portuguese.
 
-<!-- screenshot -->
+<!--
+  SHOT 3 — the "Learn from your mistakes" trainer, mid-queue.
+  Once the file exists, replace the block below with:
+
+  <p align="center">
+    <img src="docs/img/tela-treino-en.png" width="900"
+         alt="Plyscope's training mode: the position right before one of your mistakes, with the progress counter and the panel asking for the best move">
+  </p>
+
+  Note: the Opera game will NOT do for this shot — it has no serious mistakes,
+  so the training queue comes out empty. The guide says which game to use.
+-->
+<p align="center">
+  <sub>
+    A capture of the <b>"Learn from your mistakes" trainer</b> goes here — the
+    position right before one of your own mistakes, waiting for the right move.
+    How to take it: <a href="docs/img/COMO-TIRAR.md"><code>docs/img/COMO-TIRAR.md</code></a>.
+  </sub>
+</p>
 
 ## How to run
 
@@ -310,6 +365,21 @@ Recipient: **Jhony Sganzerla** · Amount: your call 💛
 ### GitHub Sponsors
 
 Prefer something recurring? Use the **Sponsor** button at the top of the repository, or go to [github.com/sponsors/Jhonysganzerla](https://github.com/sponsors/Jhonysganzerla).
+
+## Contributing
+
+Welcome. The short path: edit `src/`, run `python3 src/build.py`, run the five
+suites in `tools/`, and commit the build together with the source.
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to run, build and test, the three
+  golden rules that break the published site when forgotten, the commit-message
+  convention and **what will not be accepted** (anything needing a server).
+- [`CHANGELOG.md`](CHANGELOG.md) — what changed in each release.
+- [`SECURITY.md`](SECURITY.md) — how to report a vulnerability privately, what
+  is in scope and how long a reply takes.
+
+Those three are written in Portuguese, like the commit history. Issues and pull
+requests in English are just as welcome.
 
 ## License
 

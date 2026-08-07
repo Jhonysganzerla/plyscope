@@ -201,7 +201,10 @@ async function precisao(nJogos, depth) {
       fs.writeFileSync(path.join(OUT,"jogos.json"), JSON.stringify(todos));
       if (r.cls === "brilhante") {
         totalBri++;
-        const ehOEsperado = (i + 1) === b.ply || i === b.ply || (i + 1) === b.ply + 1;
+        // A conferência é pelo lance (uci), não pelo número do ply: um ply
+        // "por perto" não é acerto. Havia aqui um `ehOEsperado` que tolerava
+        // ±1 ply e que ninguém lia — saiu, para não parecer que a medição
+        // tem uma folga que ela não tem.
         if (uci === b.uci) achouEsperado++;
         else extras.push(b.gameId + " lance " + (i + 1) + " " + r.san +
           " (risco " + r.ctx.sac.risked + ", perda " + r.ctx.loss.toFixed(1) + ", win " + r.ctx.winBefore.toFixed(0) + "→" + r.ctx.winAfter.toFixed(0) + ")");

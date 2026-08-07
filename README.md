@@ -24,7 +24,28 @@
   <a href="#licença">Licença GPLv3</a>
 </p>
 
-<!-- screenshot -->
+<!--
+  TELA 1 — o tabuleiro com os selos, a seta do melhor lance e o gráfico.
+  Quando docs/img/tela-tabuleiro-pt.png existir, troque o bloco abaixo por:
+
+  <p align="center">
+    <img src="docs/img/tela-tabuleiro-pt.png" width="900"
+         alt="Plyscope: tabuleiro com o selo de cada lance, a seta do melhor lance e o gráfico de vantagem">
+  </p>
+
+  Roteiro de captura (partida, resolução, o que precisa aparecer):
+  docs/img/COMO-TIRAR.md
+-->
+<p align="center">
+  <sub>
+    <b>Ainda sem print.</b> Nenhuma imagem inventada entra aqui — e ainda não há
+    captura do app rodando.<br>
+    O jeito honesto de ver: <a href="https://plyscope.vercel.app/">abra o Plyscope</a>,
+    cole um PGN e olhe. Não instala nada.<br>
+    Quer ajudar com os prints? O roteiro está em
+    <a href="docs/img/COMO-TIRAR.md"><code>docs/img/COMO-TIRAR.md</code></a>.
+  </sub>
+</p>
 
 ---
 
@@ -67,7 +88,23 @@ Um lance só recebe o selo depois de passar por quatro perguntas:
 
 Antes do veredito, todo candidato a sacrifício é **reanalisado com mais profundidade**, porque é exatamente ali que a análise rasa erra: o lance parece um erro até o motor enxergar a continuação.
 
-<!-- screenshot -->
+<!--
+  TELA 2 — o painel Relatório: abertura, precisão dos dois jogadores, contagem
+  por tipo de lance e momentos decisivos. Quando o arquivo existir, troque o
+  bloco abaixo por:
+
+  <p align="center">
+    <img src="docs/img/tela-relatorio-pt.png" width="900"
+         alt="Painel Relatório do Plyscope: precisão dos dois jogadores, contagem por tipo de lance e momentos decisivos">
+  </p>
+-->
+<p align="center">
+  <sub>
+    Aqui entra a captura do <b>painel Relatório</b> — precisão dos dois
+    jogadores, contagem por tipo de lance e momentos decisivos.
+    Como tirá-la: <a href="docs/img/COMO-TIRAR.md"><code>docs/img/COMO-TIRAR.md</code></a>.
+  </sub>
+</p>
 
 ## Recursos
 
@@ -107,7 +144,25 @@ Antes do veredito, todo candidato a sacrifício é **reanalisado com mais profun
 - Números no formato de cada língua (`96,2%` × `96.2%`, `1,2 s` × `1.2s`), datas idem, e os nomes das aberturas nas duas línguas — a notação de xadrez (SAN/FEN/PGN/ECO) nunca é traduzida.
 - O selo **Capivarada** só existe em português: em inglês ele é **Blunder**, porque no meio de uma escala técnica (*Inaccuracy, Mistake…*) a piada não diria nada a quem lê em inglês.
 
-<!-- screenshot -->
+<!--
+  TELA 3 — o treino "Aprenda com seus erros", num exercício do meio da fila.
+  Quando o arquivo existir, troque o bloco abaixo por:
+
+  <p align="center">
+    <img src="docs/img/tela-treino-pt.png" width="900"
+         alt="Modo de treino do Plyscope: a posição de antes de um erro, com o contador de progresso e o painel pedindo o melhor lance">
+  </p>
+
+  Atenção: a partida da Ópera NÃO serve para esta tela — ela não tem erro
+  grave, então a fila do treino sai vazia. O roteiro explica qual usar.
+-->
+<p align="center">
+  <sub>
+    Aqui entra a captura do <b>treino "Aprenda com seus erros"</b> — a posição
+    de antes de um erro seu, esperando o lance certo.
+    Como tirá-la: <a href="docs/img/COMO-TIRAR.md"><code>docs/img/COMO-TIRAR.md</code></a>.
+  </sub>
+</p>
 
 ## Como rodar
 
@@ -300,6 +355,18 @@ Beneficiário: **Jhony Sganzerla** · Valor: você escolhe 💛
 ### GitHub Sponsors
 
 Prefere apoiar de forma recorrente? Use o botão **Sponsor** no topo do repositório ou acesse [github.com/sponsors/Jhonysganzerla](https://github.com/sponsors/Jhonysganzerla).
+
+## Contribuir
+
+Bem-vindo. O caminho curto: edite `src/`, rode `python3 src/build.py`, rode as
+cinco suítes de `tools/` e comite o build junto com a fonte.
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — como rodar, construir e testar, as três
+  regras de ouro que quebram o site quando esquecidas, o padrão das mensagens de
+  commit e **o que não entra** (nada que precise de servidor).
+- [`CHANGELOG.md`](CHANGELOG.md) — o que mudou em cada versão.
+- [`SECURITY.md`](SECURITY.md) — como relatar uma falha em privado, o que está
+  no escopo e o prazo de resposta.
 
 ## Licença
 

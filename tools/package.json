@@ -8,10 +8,13 @@
     "test-pool": "node --test test-pool.js",
     "bench-pool": "node bench-pool.js",
     "calibrar": "node calibrar.js recall 16",
-    "tune": "node tune.js"
+    "tune": "node tune.js",
+    "lint": "eslint .."
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "chess.js": "^1.4.0",
+    "eslint": "^10.8.1",
     "jsdom": "^26.0.0"
   }
 }

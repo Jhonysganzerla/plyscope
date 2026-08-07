@@ -1,0 +1,105 @@
+name: Uma ideia
+description: Recurso novo, mudança de comportamento, ajuste de tradução.
+title: "[ideia] "
+labels: ["ideia"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Escreva em **português ou em inglês**, tanto faz.
+
+        Antes de gastar o seu tempo: o projeto recusa, por arquitetura, tudo o
+        que precisa de **servidor** — conta, login, banco, análise na nuvem,
+        histórico sincronizado, telemetria — e tudo o que busca dependência em
+        **CDN**. A lista completa está em
+        [CONTRIBUTING.md → O que não entra](https://github.com/Jhonysganzerla/plyscope/blob/main/CONTRIBUTING.md#o-que-não-entra).
+        Nada disso impede um fork: é GPLv3 exatamente para isso.
+
+  - type: textarea
+    id: problema
+    attributes:
+      label: Que problema isso resolve
+      description: >-
+        Comece pelo incômodo, não pela solução. "Não consigo comparar duas
+        análises" diz mais do que "quero abas".
+      placeholder: |
+        Analiso várias partidas seguidas e perco de vista qual delas era a que
+        tinha a Capivarada no final.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposta
+    attributes:
+      label: O que você imagina
+      description: Como funcionaria, do ponto de vista de quem usa.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Que parte do app
+      options:
+        - Análise / motor
+        - Classificação dos lances (selos, precisão, Brilhante)
+        - Tabuleiro e navegação
+        - Relatório e gráfico
+        - Treino "aprenda com seus erros"
+        - Importar PGN / busca no Chess.com e Lichess
+        - Análises salvas e exportação
+        - Idioma e tradução
+        - Documentação
+        - Outra
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: sem-servidor
+    attributes:
+      label: Confere antes de enviar
+      options:
+        - label: >-
+            Funciona **100% no navegador**: não precisa de servidor, conta,
+            banco de dados nem de nada rodando fora da máquina de quem usa.
+          required: true
+        - label: >-
+            Não precisa buscar biblioteca, fonte ou ícone em CDN — a
+            distribuição continua sendo um `index.html` e a pasta `engine/`.
+          required: true
+        - label: >-
+            Se envolve uma origem de rede nova (além de `api.chess.com` e
+            `lichess.org`), eu digo qual e por quê no texto acima.
+          required: false
+
+  - type: dropdown
+    id: veredito
+    attributes:
+      label: Isso mudaria o veredito de algum lance?
+      description: >-
+        Selo diferente, precisão diferente, Brilhante a mais ou a menos. Se
+        sim, a proposta precisa vir com medição contra o benchmark — é o que a
+        regra de ouro nº 3 do CONTRIBUTING protege, e é o que faz uma versão
+        ser *major*.
+      options:
+        - Não, é interface ou conveniência
+        - Sim, muda o julgamento dos lances
+        - Não sei
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: O que você já tentou ou considerou
+      description: Inclusive "faço na mão hoje, assim".
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: ajuda
+    attributes:
+      label: Você quer implementar?
+      options:
+        - label: Posso abrir o PR, se a ideia for aceita.
+          required: false

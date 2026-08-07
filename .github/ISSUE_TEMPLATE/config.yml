@@ -1,0 +1,15 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Falha de segurança (não abra issue pública)
+    url: https://github.com/Jhonysganzerla/plyscope/security/advisories/new
+    about: >-
+      Injeção por PGN, desvio do CSP, vazamento de dado para fora da máquina:
+      relate em privado. O escopo e o prazo de resposta estão no SECURITY.md.
+  - name: Dúvida de uso — como analisar, o que cada selo significa
+    url: https://github.com/Jhonysganzerla/plyscope/blob/main/docs/MANUAL.md
+    about: O manual do usuário responde a maioria das perguntas antes da issue.
+  - name: De onde vêm os 93/100 do detector de Brilhante
+    url: https://github.com/Jhonysganzerla/plyscope/blob/main/docs/BENCHMARK.md
+    about: >-
+      Como a calibração foi feita e medida, e como reproduzir. Discordar do
+      número é bem-vindo — com a medição junto.

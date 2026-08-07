@@ -38,8 +38,8 @@ Regras: a tagline nunca vira slogan de venda ("o melhor", "revolucionário"). El
 Três promessas, nesta ordem:
 
 1. **Nada sai do seu computador.** O motor roda no seu navegador. Sem conta, sem upload, sem telemetria, sem "plano premium".
-2. **O veredito é auditável.** Cada selo tem um critério escrito, e o detector de Brilhante é medido contra um benchmark público (87/100), não contra a nossa opinião.
-3. **Continua funcionando offline.** Um `index.html`, uma pasta `engine/`, nenhuma fonte externa, nenhum CDN.
+2. **O veredito é auditável.** Cada selo tem um critério escrito, e o detector de Brilhante é medido contra um benchmark público (93/100), não contra a nossa opinião.
+3. **A análise não depende da rede.** Um `index.html`, uma pasta `engine/`, nenhuma fonte externa, nenhum CDN — depois que a página abriu, dá para desligar a internet e continuar analisando. O que **não** prometemos é abrir sem rede: não há service worker nem manifest, então o site publicado precisa da primeira carga. A cópia local (o `.bat`, o `.command`, o `plyscope.sh`) essa sim roda sem internet nenhuma.
 
 Antipromessas: não somos um site de treino, não temos ranking, não damos "aulas", não gamificamos.
 
@@ -92,7 +92,7 @@ brand/preview-logo.png  render do lockup (conferência)
 brand/preview-marks.png render do símbolo e do ícone em 16/24/32/64/128 px (conferência)
 ```
 
-No app o favicon **não** aponta para esses arquivos: ele é um data-URI SVG inline no `<head>` do `index.html`, porque a distribuição é um arquivo único e precisa funcionar offline. Se mudar `icon.svg`, mude o data-URI junto.
+No app o favicon **não** aponta para esses arquivos: ele é um data-URI SVG inline no `<head>` do `index.html`, porque a distribuição é um arquivo único e não busca nada pela rede. Se mudar `icon.svg`, mude o data-URI junto.
 
 ### O que ela representa
 
@@ -122,10 +122,10 @@ Desenhado em curvas a partir de **Poppins Medium** (SIL OFL) — grotesca geomé
 Português do Brasil, direto, sem marketês. Quem fala é alguém que entende de xadrez e de software e não está tentando te vender nada.
 
 - **Frases curtas.** Verbo no presente. "O Stockfish avalia todas as posições." Não: "Nossa tecnologia de ponta é capaz de avaliar…"
-- **Número em vez de adjetivo.** "87/100 no benchmark" em vez de "detecção excelente".
-- **Honestidade sobre limites** é parte da marca: dizemos que somos 87 e que o Chessigma faz 93. Um README que só se elogia não é confiável.
+- **Número em vez de adjetivo.** "93/100 no benchmark" em vez de "detecção excelente".
+- **Honestidade sobre limites** é parte da marca: dizemos que somos 93 e que o gabarito, o chess.com, é 100 — e publicamos a tabela inteira, com quem empata conosco. Um README que só se elogia não é confiável.
 - **Termo técnico sem medo, com tradução na primeira vez.** "chance de vitória (win%)", "ply (meio lance)".
 - **Humor:** existe, é seco e mora num lugar só — **"Capivarada"** no lugar de "blunder". É a piada brasileira da casa; não multiplique gírias pelo resto da interface.
 - **Nunca:** exclamação em cadeia, emoji em botão, "clique aqui", "revolucionário", "poderoso", "IA" como enfeite.
 
-**Como nos referimos ao chess.com:** com respeito e sem rodeios. Eles cobram pelo Game Review; nós fazemos parecido, de graça, offline. A comparação é factual (números do benchmark), nunca provocação.
+**Como nos referimos ao chess.com:** com respeito e sem rodeios. Eles cobram pelo Game Review; nós fazemos parecido, de graça, no navegador de quem usa. A comparação é factual (números do benchmark), nunca provocação.

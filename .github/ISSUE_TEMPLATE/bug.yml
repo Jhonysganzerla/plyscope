@@ -1,0 +1,155 @@
+name: Algo está errado
+description: Um defeito no app — análise, selo, tabuleiro, treino, relatório, tradução.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Escreva em **português ou em inglês**, tanto faz.
+
+        O app roda inteiro no seu navegador: não existe log do lado de cá.
+        O que estiver escrito aqui é tudo o que dá para investigar — em
+        especial **o PGN** e **o que a aba Motor mostra**.
+
+        Falha de **segurança** não vai aqui: leia o
+        [SECURITY.md](https://github.com/Jhonysganzerla/plyscope/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: o-que-aconteceu
+    attributes:
+      label: O que aconteceu
+      description: E o que você esperava que acontecesse.
+      placeholder: |
+        Marcou o lance 23 (Nxc7+) como Capivarada, e é o lance que ganha a dama.
+    validations:
+      required: true
+
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      description: O caminho exato, na ordem.
+      placeholder: |
+        1. Abri pelo `Abrir Plyscope.bat`
+        2. Colei o PGN abaixo e cliquei em Analisar, profundidade padrão (16)
+        3. Fui até o lance 23 com a seta →
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: pgn
+    attributes:
+      label: "O PGN que reproduz — na prática, obrigatório"
+      description: >-
+        Cole o PGN **inteiro**, sem cortar os cabeçalhos: a abertura, o
+        resultado e os nomes entram na análise. Se o problema veio da busca no
+        Chess.com ou no Lichess, cole o link da partida em vez do PGN.
+        Sem isto, quase nada é investigável — issue sem PGN costuma parar em
+        "me manda o PGN".
+      render: text
+      placeholder: |
+        [Event "..."]
+        [White "..."]
+        [Black "..."]
+        [Result "..."]
+
+        1. e4 e5 2. Nf3 ...
+
+  - type: input
+    id: navegador
+    attributes:
+      label: Navegador e versão
+      placeholder: Firefox 141 · Chrome 139 · Safari 18.5 · Edge 139
+    validations:
+      required: true
+
+  - type: input
+    id: sistema
+    attributes:
+      label: Sistema operacional
+      placeholder: Windows 11 · macOS 15 · Ubuntu 24.04 · Android 15
+    validations:
+      required: true
+
+  - type: dropdown
+    id: onde
+    attributes:
+      label: Onde estava rodando
+      description: >-
+        Muda os cabeçalhos que a página recebe — e, com eles, o modo do motor e
+        a política de segurança de conteúdo.
+      options:
+        - plyscope.vercel.app
+        - Local, pelo "Abrir Plyscope.bat" (Windows)
+        - Local, pelo "Abrir Plyscope.command" ou ./plyscope.sh (macOS/Linux)
+        - Local, por outro servidor estático (python -m http.server, npx serve…)
+        - Outra hospedagem (fork em Netlify, Pages, Cloudflare…)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: motor
+    attributes:
+      label: "Modo do motor — está escrito na aba Motor, dentro do app"
+      description: >-
+        Abra a aba **Motor** e copie o que está lá. Single-thread e
+        multi-thread não dão exatamente a mesma avaliação a uma profundidade
+        fixa, e o pool reparte a tabela de transposição de outro jeito: metade
+        dos relatos de "número diferente" mora aqui.
+      options:
+        - 1 thread (single-thread)
+        - Multi-thread (N threads)
+        - Pool de N motores (aparece durante a análise da partida inteira)
+        - Não sei / a aba não diz
+    validations:
+      required: true
+
+  - type: dropdown
+    id: profundidade
+    attributes:
+      label: Profundidade usada
+      options:
+        - Rápida (12)
+        - Padrão (16)
+        - Profunda (20)
+        - Não se aplica
+    validations:
+      required: true
+
+  - type: dropdown
+    id: idioma
+    attributes:
+      label: Idioma da interface quando o problema apareceu
+      description: Marque "Aconteceu ao trocar" se o defeito surgiu no clique em PT/EN.
+      options:
+        - Português
+        - Inglês
+        - Aconteceu ao trocar de idioma
+        - Não se aplica
+    validations:
+      required: false
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Erros no console do navegador
+      description: >-
+        F12 → Console. Cole o que estiver em vermelho. Mensagem que fale em
+        *Content Security Policy*, *SharedArrayBuffer* ou *Worker* é ouro:
+        cole inteira.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Mais alguma coisa
+      description: Print, gravação de tela, o que você já tentou.
+    validations:
+      required: false

@@ -1,0 +1,48 @@
+# EditorConfig — https://editorconfig.org
+#
+# Descreve o que o código JÁ é; não é uma reforma. O editor acerta o arquivo
+# novo e para de brigar com o antigo. Não existe formatador automático neste
+# projeto de propósito: reescrever milhares de linhas que funcionam só serve
+# para apagar o `git blame`.
+#
+# ATENÇÃO ÀS QUEBRAS DE LINHA: elas não são gosto pessoal aqui. O CSP libera
+# cada <script> inline do index.html por hash SHA-256, calculado sobre os
+# BYTES do arquivo. Um clone que trocasse LF por CRLF mudaria os cinco hashes
+# de uma vez e o navegador bloquearia o app inteiro. Quem manda de verdade é
+# o .gitattributes (ele normaliza no commit e no checkout); este arquivo só
+# faz o editor concordar com ele.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.py]
+indent_size = 4
+
+[*.md]
+# dois espaços no fim da linha são quebra de linha em Markdown.
+trim_trailing_whitespace = false
+
+# Scripts do Windows: sem CRLF o duplo clique no .bat falha em algumas
+# configurações, e o PowerShell reclama. Igual ao .gitattributes.
+[*.{bat,ps1}]
+end_of_line = crlf
+
+# Scripts de macOS/Linux: com CRLF o shebang vira "bad interpreter".
+[*.{sh,command}]
+end_of_line = lf
+
+# Entram no hash do CSP — LF em qualquer sistema, sem exceção.
+[{*.html,_headers}]
+end_of_line = lf
+
+# Gerados ou de terceiros: o editor não deve "arrumar" nada aqui.
+[{index.html,engine/**,src/vendor/**,src/data/openings.js}]
+trim_trailing_whitespace = false
+insert_final_newline = false
