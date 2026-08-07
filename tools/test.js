@@ -979,6 +979,31 @@ const t1 = (el) => (el || { textContent: "" }).textContent.replace(/\s+/g, " ").
     !!window.document.querySelector('[data-tab="'+t+'"]')));
   console.log("abas OK");
 
+  /* ================= nome de jogador hostil ================= */
+  // PGN e API de terceiros mandam texto arbitrário para dentro de innerHTML e de
+  // atributos (title=, data-*=). Se o escape falhar, isso vira execução de script.
+  console.log("\n== nome de jogador hostil ==");
+  // sem aspas de propósito: aspas encerram o valor da tag e nunca chegam ao app.
+  // o que passa pelo parser de PGN é isto, e é isto que o escape precisa segurar.
+  const veneno = `<img src=x onerror=window.__xss=1>`;
+  const doisJogos = [1, 2].map((n) => `[Event "Injeção ${n}"]
+[White "${veneno}"]
+[Black "Fulano"]
+[Result "*"]
+
+1. e4 e5 *`).join("\n\n");
+  $("pgnBox").value = doisJogos;
+  $("btnLoadPgn").click(); await wait(200);
+  conf("nada foi executado ao listar as partidas", window.__xss === undefined);
+  conf("nenhum <img> injetado na lista", window.document.querySelectorAll("#gameList img").length === 0);
+  const item = window.document.querySelector("#gameList button");
+  conf("o nome aparece como texto", !!item && item.textContent.includes("onerror"));
+  const primeiro = window.document.querySelector("#gameList button");
+  if (primeiro) { primeiro.click(); await wait(200); }
+  conf("na chapa do jogador também é texto", $("nmBot").textContent.includes("onerror") ||
+    $("nmTop").textContent.includes("onerror"));
+  conf("nada foi executado ao abrir a partida", window.__xss === undefined);
+
   /* ---------- o veredito ---------- */
   const falhas = ok.filter((x) => !x).length;
   console.log("\n== resumo ==");

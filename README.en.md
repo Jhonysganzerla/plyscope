@@ -10,7 +10,7 @@
 
 <p align="center">
   Chess game review with Stockfish 17.1, <b>100% in your browser</b>.<br>
-  No account, no server, no subscription, no internet after the first click.
+  No account, no server, no subscription — the whole analysis happens on your machine.
 </p>
 
 <p align="center">

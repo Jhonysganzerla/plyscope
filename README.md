@@ -10,7 +10,7 @@
 
 <p align="center">
   Revisão de partidas de xadrez com Stockfish 17.1, <b>100% no seu navegador</b>.<br>
-  Sem conta, sem servidor, sem mensalidade, sem internet depois do primeiro clique.
+  Sem conta, sem servidor, sem mensalidade — a análise inteira acontece na sua máquina.
 </p>
 
 <p align="center">

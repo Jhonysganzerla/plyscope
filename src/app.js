@@ -1101,7 +1101,13 @@ function renderReport() {
   if ($("exportRow")) $("exportRow").style.display = "";
   drawGraph();
 }
-function esc(s) { return String(s).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])); }
+/* Escapa para HTML. As aspas contam: quase todo uso aqui é dentro de atributo
+   (title=, aria-label=, data-*=), e sem elas um nome de jogador vindo de PGN ou
+   de API de terceiros fecha o atributo e injeta o que quiser. */
+function esc(s) {
+  return String(s).replace(/[<>&"']/g, (c) =>
+    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 
 function drawGraph() {
   const cv = $("graph");
