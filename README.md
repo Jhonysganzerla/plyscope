@@ -100,6 +100,8 @@ Antes do veredito, todo candidato a sacrifício é **reanalisado com mais profun
 - Reprodução automática com velocidade ajustável (0,6 s a 3,5 s).
 - Sons sintetizados no próprio navegador — lance, captura, xeque, roque, promoção, brilhante, erro e fim de partida — com botão de mudo. Nenhum arquivo de áudio.
 - Atalhos: `←` `→` navegam, `Home` / `End` vão ao início e ao fim, `F` gira, `espaço` reproduz, `M` muda.
+- **Tabuleiro por teclado:** o `Tab` pousa numa casa e as setas viram um cursor de casa; `Enter` seleciona a peça e joga, `Esc` cancela. Com o tabuleiro em foco as setas são dele; fora dele continuam passando os lances. Explorar variações e o treino se completam sem tocar no mouse.
+- **Leitor de tela:** o tabuleiro é `role="grid"` e cada casa se anuncia como "e4, peão branco"; uma região viva diz o lance e o selo ao navegar ("Lance 12, Brancas: Nf3, Melhor") e o veredito de cada exercício do treino.
 
 **Interface**
 - Escura grafite, layout de aplicativo: o tabuleiro fica sempre visível, sem rolagem.

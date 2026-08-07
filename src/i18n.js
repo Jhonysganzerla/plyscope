@@ -81,6 +81,43 @@ const STR = {
   "btn.som.aria":      ["Ligar ou desligar o som", "Turn the sound on or off"],
   "btn.fen":           ["Copiar FEN da posição", "Copy the position's FEN"],
   "btn.pgn":           ["Copiar PGN da partida", "Copy the game's PGN"],
+  "aval.aria":         ["Avaliação da posição", "Position evaluation"],
+  "aval.brancas":      ["Avaliação: brancas {v}", "Evaluation: White {v}"],
+  "aval.pretas":       ["Avaliação: pretas {v}", "Evaluation: Black {v}"],
+  "aval.igual":        ["Avaliação: equilibrada", "Evaluation: level"],
+  "aval.sem":          ["Posição ainda não avaliada", "Position not evaluated yet"],
+
+  /* ---------- tabuleiro por teclado ----------
+     O rótulo de cada casa é "coordenada, conteúdo": o leitor de tela lê
+     "e4, peão branco" ao pousar o cursor. Os nomes de peça vêm com a cor
+     junto (e não montados de dois pedaços) porque em português o adjetivo
+     concorda com o gênero da peça: torre BRANCA, peão BRANCO. */
+  "tabuleiro.aria":    ["Tabuleiro de xadrez", "Chess board"],
+  "teclado.dica":      ["<b>Tabuleiro com foco:</b> <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> movem o cursor de casa, <kbd>Enter</kbd> seleciona a peça e joga, <kbd>Esc</kbd> cancela. <b>Fora do tabuleiro:</b> <kbd>←</kbd><kbd>→</kbd> passam os lances, <kbd>Home</kbd>/<kbd>End</kbd> vão ao início e ao fim, <kbd>espaço</kbd> reproduz, <kbd>F</kbd> gira, <kbd>M</kbd> liga o som.",
+                        "<b>Board focused:</b> <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> move the square cursor, <kbd>Enter</kbd> picks a piece and plays, <kbd>Esc</kbd> clears. <b>Anywhere else:</b> <kbd>←</kbd><kbd>→</kbd> step through the game, <kbd>Home</kbd>/<kbd>End</kbd> jump to first and last, <kbd>space</kbd> autoplays, <kbd>F</kbd> flips, <kbd>M</kbd> toggles sound."],
+  "casa.vazia":        ["{casa}, vazia", "{casa}, empty"],
+  "casa.selecionada":  ["{base}, selecionada", "{base}, selected"],
+  "casa.destino":      ["{base}, destino do lance", "{base}, move target"],
+  "pc.wp": ["peão branco", "white pawn"],
+  "pc.wn": ["cavalo branco", "white knight"],
+  "pc.wb": ["bispo branco", "white bishop"],
+  "pc.wr": ["torre branca", "white rook"],
+  "pc.wq": ["dama branca", "white queen"],
+  "pc.wk": ["rei branco", "white king"],
+  "pc.bp": ["peão preto", "black pawn"],
+  "pc.bn": ["cavalo preto", "black knight"],
+  "pc.bb": ["bispo preto", "black bishop"],
+  "pc.br": ["torre preta", "black rook"],
+  "pc.bq": ["dama preta", "black queen"],
+  "pc.bk": ["rei preto", "black king"],
+
+  /* ---------- o que a região viva anuncia ---------- */
+  "aviso.inicio":      ["Posição inicial", "Starting position"],
+  "aviso.selecionou":  ["{casa} selecionada, {n} destinos", "{casa} selected, {n} targets"],
+  "aviso.selecionou1": ["{casa} selecionada, 1 destino", "{casa} selected, 1 target"],
+  "aviso.semDestino":  ["{casa} não tem lance nesta posição", "{casa} has no move here"],
+  "aviso.cancelou":    ["Seleção desfeita", "Selection cleared"],
+  "aviso.jogou":       ["Jogou {san}", "Played {san}"],
 
   /* ---------- status da análise ---------- */
   "status.analisando":   ["Analisando…", "Analyzing…"],
@@ -97,10 +134,16 @@ const STR = {
   "status.precisao":     ["Precisão — Brancas {w} · Pretas {b}", "Accuracy — White {w} · Black {b}"],
 
   /* ---------- abas ---------- */
+  "abas.aria":     ["Painéis da análise", "Analysis panels"],
   "aba.importar":  ["Importar", "Import"],
   "aba.relatorio": ["Relatório", "Report"],
   "aba.lances":    ["Lances", "Moves"],
   "aba.motor":     ["Motor", "Engine"],
+
+  /* rótulo de cada lance da lista: o texto visível é notação, o leitor de
+     tela ganha o número, o lado e o selo por extenso. */
+  "lance.aria":     ["Lance {n}, {cor}: {san}", "Move {n}, {cor}: {san}"],
+  "lance.aria.cls": ["Lance {n}, {cor}: {san}, {cls}", "Move {n}, {cor}: {san}, {cls}"],
 
   /* ---------- importar ---------- */
   "import.pgnLabel": ["PGN da partida", "Game PGN"],
@@ -109,6 +152,9 @@ const STR = {
   "import.carregar": ["Carregar PGN", "Load PGN"],
   "import.arquivo":  ["Arquivo .pgn", ".pgn file"],
   "import.arraste":  ["arraste um arquivo .pgn aqui", "drop a .pgn file here"],
+
+  "buscar.site.aria":    ["Site de xadrez", "Chess site"],
+  "buscar.usuario.aria": ["Nome de usuário no site escolhido", "Username on the chosen site"],
 
   "salvas.titulo":      ["Análises salvas", "Saved analyses"],
   "salvas.dica":        ["As análises ficam guardadas neste navegador.", "Analyses are kept in this browser."],

@@ -25,10 +25,14 @@
   --line:#282d35;
   --hair:#1f242a;
 
-  /* texto */
+  /* texto
+     --tx-3 é o cinza do texto secundário (dicas, legendas, avaliação da lista).
+     #767d87 dava 4,51:1 sobre --bg, mas só 3,56:1 sobre --surface-3, onde boa
+     parte dele aparece: reprovava o mínimo de 4,5:1 da WCAG AA justamente
+     dentro dos painéis. #8f97a1 fica em 5,0:1 no pior fundo e 6,6:1 no melhor. */
   --tx:#e8eaed;
   --tx-2:#a4abb4;
-  --tx-3:#767d87;
+  --tx-3:#8f97a1;
 
   /* acento único (violeta Plyscope): a cor da interface, nunca a cor de um lance.
      verde/ciano/amarelo/laranja/vermelho já significam qualidade de lance — o acento fica fora dessa escala. */
@@ -80,6 +84,17 @@ input,select,textarea{font:inherit;color:inherit}
 h1,h2,h3,h4,p{margin:0}
 b,strong{font-weight:650}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+/* onde o pai corta o que sai da caixa (grupos de botões, abas, listas roláveis)
+   o contorno tem que entrar para dentro, ou o foco fica invisível. */
+.btn-group :focus-visible,.tabs :focus-visible,.gamelist :focus-visible,
+.moves :focus-visible,.langsel :focus-visible{outline-offset:-2px}
+
+/* texto só para leitor de tela: sai do fluxo sem sair da árvore de acessibilidade
+   (display:none e visibility:hidden sumiriam também para o leitor). */
+.sr-only{
+  position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;
+  overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;
+}
 ::selection{background:var(--accent-dim);color:var(--tx)}
 ::-webkit-scrollbar{width:9px;height:9px}
 ::-webkit-scrollbar-thumb{background:#2f353d;border-radius:99px;border:2px solid transparent;background-clip:padding-box}
@@ -235,6 +250,30 @@ h3.sub{
   box-shadow:0 0 0 1px rgba(0,0,0,.55),0 26px 50px -34px rgba(0,0,0,.9);
 }
 #board{width:100%;height:100%;aspect-ratio:1;display:block;touch-action:manipulation;cursor:pointer}
+
+/* ---------- camada acessível do tabuleiro ----------
+   O desenho continua no SVG; quem tem papel, rótulo e foco é esta grade de
+   64 células HTML por cima dele. Fica exatamente sobre as casas porque o
+   .board-frame é quadrado e a grade é 8×8 de frações iguais. As células são
+   transparentes: nada aqui aparece, só é anunciado e focado. */
+.boardgrid{
+  position:absolute;inset:0;z-index:2;
+  display:grid;grid-template-rows:repeat(8,1fr);
+}
+.boardgrid .brow{display:grid;grid-template-columns:repeat(8,1fr)}
+.boardgrid .sq{cursor:pointer;outline:none}
+/* o cursor de teclado: o único realce que o SVG não desenha, porque é do
+   navegador que ele vem. Duplo anel para valer nas duas cores de casa. */
+.boardgrid .sq:focus{
+  outline:3px solid var(--accent);outline-offset:-3px;
+  box-shadow:inset 0 0 0 5px rgba(0,0,0,.45);
+}
+.boardkeys{margin-top:2px;text-align:left}
+.boardkeys kbd{
+  font-family:var(--mono);font-size:11px;font-weight:600;color:var(--tx-2);
+  background:var(--surface-2);border:1px solid var(--line);border-bottom-width:2px;
+  border-radius:4px;padding:1px 5px;margin:0 1px;white-space:nowrap;
+}
 /* peças deslizando: a classe só existe durante a troca de um lance para o vizinho */
 #gPieces use.pc-anim{transition:transform .18s cubic-bezier(.33,.7,.36,1)}
 #gPieces use.pc-out{animation:pcSai .18s linear forwards}   /* capturada: espera a outra chegar */
@@ -450,9 +489,11 @@ h3.sub{
   font-family:var(--mono);font-size:11.5px;color:var(--tx-3);
   text-align:right;padding-right:9px;font-variant-numeric:tabular-nums;
 }
+/* .mv é <button>: o lance sempre foi clicável, mas como <div> não entrava na
+   ordem de tabulação nem se anunciava como acionável. */
 .mv{
   display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:var(--r-xs);
-  font-size:13.5px;font-weight:600;cursor:pointer;
+  font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;width:100%;
   transition:background .14s var(--ease),color .14s var(--ease);
 }
 .mv:hover{background:var(--surface-3)}
@@ -477,7 +518,12 @@ h3.sub{
   text-align:center;margin-right:9px;letter-spacing:-.03em;
 }
 .pvline .sc.neg{background:#2a2e35;color:#dfe1e5;box-shadow:inset 0 0 0 1px #363c45}
-.pvmove{cursor:pointer;color:var(--tx-2);transition:color .14s var(--ease)}
+/* <button>: seguir a variação do motor é uma ação, e como <span> ela não
+   existia para o teclado. Aqui o botão se veste de texto corrido. */
+.pvmove{
+  cursor:pointer;color:var(--tx-2);font:inherit;line-height:inherit;
+  transition:color .14s var(--ease);
+}
 .pvmove:hover{color:var(--accent-hi)}
 
 /* =========================================================
@@ -585,7 +631,7 @@ h3.sub{
       </div>
       <span class="tool-sep"></span>
       <label class="ctl" for="depth">
-        <span class="ctl-k" data-i18n="topo.profundidade">Profundidade</span>
+        <label class="ctl-k" for="depth" data-i18n="topo.profundidade">Profundidade</label>
         <select id="depth" data-i18n-title="topo.profundidade.dica" title="Profundidade da análise">
           <option value="12" data-i18n="prof.12">Rápida · prof. 12</option>
           <option value="16" selected data-i18n="prof.16">Padrão · prof. 16</option>
@@ -613,12 +659,16 @@ h3.sub{
       </div>
 
       <div class="board-bay">
-        <div class="evalbar" id="evalbar">
+        <div class="evalbar" id="evalbar" role="img" data-i18n-aria="aval.aria" aria-label="Avaliação da posição">
           <div class="white" id="evalWhite"></div>
           <div class="txt" id="evalTxt">0.0</div>
         </div>
         <div class="board-frame">
-          <svg id="board" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+          <!-- o SVG é o desenho; a semântica está na grade logo abaixo, por isso
+               ele sai da árvore de acessibilidade em vez de virar uma imagem sem
+               alternativa possível (a posição muda a cada lance). -->
+          <svg id="board" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg"
+               aria-hidden="true" focusable="false">
             <g id="gSquares"></g>
             <g id="gHigh"></g>
             <g id="gPieces"></g>
@@ -626,6 +676,9 @@ h3.sub{
             <g id="gBadge"></g>
             <g id="gCoords"></g>
           </svg>
+          <!-- 8 linhas × 8 células, montadas por montarGrade() -->
+          <div class="boardgrid" id="boardGrid" role="grid" aria-describedby="boardKeys"
+               data-i18n-aria="tabuleiro.aria" aria-label="Tabuleiro de xadrez"></div>
         </div>
       </div>
 
@@ -672,9 +725,21 @@ h3.sub{
           <svg viewBox="0 0 24 24" aria-hidden="true" id="icoSoundOn"><path d="M5 9.5h3l4.5-3.6v12.2L8 14.5H5z"/><path d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.6a7.6 7.6 0 0 1 0 10.8"/></svg>
           <svg viewBox="0 0 24 24" aria-hidden="true" id="icoSoundOff" style="display:none"><path d="M5 9.5h3l4.5-3.6v12.2L8 14.5H5z"/><path d="m16.5 9.5 5 5m0-5-5 5"/></svg>
         </button>
-        <button class="btn sm" id="btnCopyFen" data-i18n-title="btn.fen" title="Copiar FEN da posição">FEN</button>
-        <button class="btn sm" id="btnCopyPgn" data-i18n-title="btn.pgn" title="Copiar PGN da partida">PGN</button>
+        <!-- o title sozinho não chega ao teclado nem ao leitor de tela; o rótulo
+             acessível repete o texto visível ("FEN") para o comando de voz achar. -->
+        <button class="btn sm" id="btnCopyFen" data-i18n-title="btn.fen" title="Copiar FEN da posição"
+          data-i18n-aria="btn.fen" aria-label="Copiar FEN da posição">FEN</button>
+        <button class="btn sm" id="btnCopyPgn" data-i18n-title="btn.pgn" title="Copiar PGN da partida"
+          data-i18n-aria="btn.pgn" aria-label="Copiar PGN da partida">PGN</button>
       </div>
+
+      <p class="hint boardkeys" id="boardKeys" data-i18n-html="teclado.dica">
+        <b>Tabuleiro com foco:</b> <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> movem o cursor de casa,
+        <kbd>Enter</kbd> seleciona a peça e joga, <kbd>Esc</kbd> cancela.
+        <b>Fora do tabuleiro:</b> <kbd>←</kbd><kbd>→</kbd> passam os lances,
+        <kbd>Home</kbd>/<kbd>End</kbd> vão ao início e ao fim, <kbd>espaço</kbd> reproduz,
+        <kbd>F</kbd> gira, <kbd>M</kbd> liga o som.
+      </p>
     </section>
 
     <!-- ============ trilho de painéis ============ -->
@@ -702,15 +767,15 @@ h3.sub{
       </div>
 
       <div class="panel panel-main">
-        <div class="tabs">
-          <button data-tab="import" class="on" data-i18n="aba.importar">Importar</button>
-          <button data-tab="report" data-i18n="aba.relatorio">Relatório</button>
-          <button data-tab="moves" data-i18n="aba.lances">Lances</button>
-          <button data-tab="engine" data-i18n="aba.motor">Motor</button>
+        <div class="tabs" role="tablist" data-i18n-aria="abas.aria" aria-label="Painéis da análise">
+          <button role="tab" id="tabbtn-import" aria-controls="tab-import" aria-selected="true"  data-tab="import" class="on" data-i18n="aba.importar">Importar</button>
+          <button role="tab" id="tabbtn-report" aria-controls="tab-report" aria-selected="false" tabindex="-1" data-tab="report" data-i18n="aba.relatorio">Relatório</button>
+          <button role="tab" id="tabbtn-moves"  aria-controls="tab-moves"  aria-selected="false" tabindex="-1" data-tab="moves" data-i18n="aba.lances">Lances</button>
+          <button role="tab" id="tabbtn-engine" aria-controls="tab-engine" aria-selected="false" tabindex="-1" data-tab="engine" data-i18n="aba.motor">Motor</button>
         </div>
 
         <!-- IMPORTAR -->
-        <div class="tabpane on" id="tab-import">
+        <div class="tabpane on" id="tab-import" role="tabpanel" aria-labelledby="tabbtn-import" tabindex="0">
           <div class="pad">
             <div class="field">
               <label for="pgnBox" data-i18n="import.pgnLabel">PGN da partida</label>
@@ -733,11 +798,15 @@ h3.sub{
 
             <h3 class="sub" data-i18n="buscar.titulo">Buscar partidas online</h3>
             <div class="row">
-              <select id="site" style="width:132px;flex:0 0 132px">
+              <select id="site" style="width:132px;flex:0 0 132px"
+                data-i18n-aria="buscar.site.aria" aria-label="Site de xadrez">
                 <option value="chesscom">Chess.com</option>
                 <option value="lichess">Lichess</option>
               </select>
-              <input type="text" id="userBox" data-i18n-placeholder="buscar.usuario" placeholder="seu usuário" autocomplete="off" spellcheck="false">
+              <!-- placeholder não é rótulo: some quando o campo tem texto -->
+              <input type="text" id="userBox" data-i18n-placeholder="buscar.usuario" placeholder="seu usuário"
+                data-i18n-aria="buscar.usuario.aria" aria-label="Nome de usuário no site escolhido"
+                autocomplete="off" spellcheck="false">
               <button class="btn" id="btnFetch" data-i18n="buscar.botao">Buscar</button>
             </div>
             <div class="hint" id="fetchHint" style="margin-top:9px" data-i18n="buscar.dica">Traz suas últimas partidas públicas. Sem login, sem custo.</div>
@@ -746,7 +815,7 @@ h3.sub{
         </div>
 
         <!-- RELATÓRIO -->
-        <div class="tabpane" id="tab-report">
+        <div class="tabpane" id="tab-report" role="tabpanel" aria-labelledby="tabbtn-report" tabindex="0">
           <div class="pad" id="reportBody">
             <div class="empty">
               <span class="rule"></span>
@@ -766,7 +835,7 @@ h3.sub{
         </div>
 
         <!-- LANCES -->
-        <div class="tabpane" id="tab-moves">
+        <div class="tabpane" id="tab-moves" role="tabpanel" aria-labelledby="tabbtn-moves" tabindex="0">
           <div class="moves" id="movesBody">
             <div class="empty" style="padding-left:8px">
               <span class="rule"></span>
@@ -777,7 +846,7 @@ h3.sub{
         </div>
 
         <!-- MOTOR -->
-        <div class="tabpane" id="tab-engine">
+        <div class="tabpane" id="tab-engine" role="tabpanel" aria-labelledby="tabbtn-engine" tabindex="0">
           <div class="pad">
             <div id="engineLines" class="pv">
               <div class="empty">
@@ -820,7 +889,13 @@ h3.sub{
 
 <div class="toast" id="toast"></div>
 
-<svg style="display:none" id="pieceDefs" xmlns="http://www.w3.org/2000/svg"><defs>
+<!-- Região viva: o lance ao navegar, o veredito do treino, a seleção no
+     tabuleiro. Fora de .app de propósito — é texto que só o leitor de tela lê,
+     e dentro de .app ele apareceria na varredura de idioma da suíte como
+     "sobra" do idioma anterior. aria-atomic para a frase sair inteira. -->
+<div id="live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<svg style="display:none" id="pieceDefs" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
 <g id="wk" stroke-linecap="round" stroke-linejoin="round" transform="translate(5.000000, 5.000000)" stroke="#000000"
        stroke-width="1.5">
         <line x1="15" y1="4.96764706" x2="15" y2="0"/>
@@ -4922,6 +4997,43 @@ const STR = {
   "btn.som.aria":      ["Ligar ou desligar o som", "Turn the sound on or off"],
   "btn.fen":           ["Copiar FEN da posição", "Copy the position's FEN"],
   "btn.pgn":           ["Copiar PGN da partida", "Copy the game's PGN"],
+  "aval.aria":         ["Avaliação da posição", "Position evaluation"],
+  "aval.brancas":      ["Avaliação: brancas {v}", "Evaluation: White {v}"],
+  "aval.pretas":       ["Avaliação: pretas {v}", "Evaluation: Black {v}"],
+  "aval.igual":        ["Avaliação: equilibrada", "Evaluation: level"],
+  "aval.sem":          ["Posição ainda não avaliada", "Position not evaluated yet"],
+
+  /* ---------- tabuleiro por teclado ----------
+     O rótulo de cada casa é "coordenada, conteúdo": o leitor de tela lê
+     "e4, peão branco" ao pousar o cursor. Os nomes de peça vêm com a cor
+     junto (e não montados de dois pedaços) porque em português o adjetivo
+     concorda com o gênero da peça: torre BRANCA, peão BRANCO. */
+  "tabuleiro.aria":    ["Tabuleiro de xadrez", "Chess board"],
+  "teclado.dica":      ["<b>Tabuleiro com foco:</b> <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> movem o cursor de casa, <kbd>Enter</kbd> seleciona a peça e joga, <kbd>Esc</kbd> cancela. <b>Fora do tabuleiro:</b> <kbd>←</kbd><kbd>→</kbd> passam os lances, <kbd>Home</kbd>/<kbd>End</kbd> vão ao início e ao fim, <kbd>espaço</kbd> reproduz, <kbd>F</kbd> gira, <kbd>M</kbd> liga o som.",
+                        "<b>Board focused:</b> <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> move the square cursor, <kbd>Enter</kbd> picks a piece and plays, <kbd>Esc</kbd> clears. <b>Anywhere else:</b> <kbd>←</kbd><kbd>→</kbd> step through the game, <kbd>Home</kbd>/<kbd>End</kbd> jump to first and last, <kbd>space</kbd> autoplays, <kbd>F</kbd> flips, <kbd>M</kbd> toggles sound."],
+  "casa.vazia":        ["{casa}, vazia", "{casa}, empty"],
+  "casa.selecionada":  ["{base}, selecionada", "{base}, selected"],
+  "casa.destino":      ["{base}, destino do lance", "{base}, move target"],
+  "pc.wp": ["peão branco", "white pawn"],
+  "pc.wn": ["cavalo branco", "white knight"],
+  "pc.wb": ["bispo branco", "white bishop"],
+  "pc.wr": ["torre branca", "white rook"],
+  "pc.wq": ["dama branca", "white queen"],
+  "pc.wk": ["rei branco", "white king"],
+  "pc.bp": ["peão preto", "black pawn"],
+  "pc.bn": ["cavalo preto", "black knight"],
+  "pc.bb": ["bispo preto", "black bishop"],
+  "pc.br": ["torre preta", "black rook"],
+  "pc.bq": ["dama preta", "black queen"],
+  "pc.bk": ["rei preto", "black king"],
+
+  /* ---------- o que a região viva anuncia ---------- */
+  "aviso.inicio":      ["Posição inicial", "Starting position"],
+  "aviso.selecionou":  ["{casa} selecionada, {n} destinos", "{casa} selected, {n} targets"],
+  "aviso.selecionou1": ["{casa} selecionada, 1 destino", "{casa} selected, 1 target"],
+  "aviso.semDestino":  ["{casa} não tem lance nesta posição", "{casa} has no move here"],
+  "aviso.cancelou":    ["Seleção desfeita", "Selection cleared"],
+  "aviso.jogou":       ["Jogou {san}", "Played {san}"],
 
   /* ---------- status da análise ---------- */
   "status.analisando":   ["Analisando…", "Analyzing…"],
@@ -4938,10 +5050,16 @@ const STR = {
   "status.precisao":     ["Precisão — Brancas {w} · Pretas {b}", "Accuracy — White {w} · Black {b}"],
 
   /* ---------- abas ---------- */
+  "abas.aria":     ["Painéis da análise", "Analysis panels"],
   "aba.importar":  ["Importar", "Import"],
   "aba.relatorio": ["Relatório", "Report"],
   "aba.lances":    ["Lances", "Moves"],
   "aba.motor":     ["Motor", "Engine"],
+
+  /* rótulo de cada lance da lista: o texto visível é notação, o leitor de
+     tela ganha o número, o lado e o selo por extenso. */
+  "lance.aria":     ["Lance {n}, {cor}: {san}", "Move {n}, {cor}: {san}"],
+  "lance.aria.cls": ["Lance {n}, {cor}: {san}, {cls}", "Move {n}, {cor}: {san}, {cls}"],
 
   /* ---------- importar ---------- */
   "import.pgnLabel": ["PGN da partida", "Game PGN"],
@@ -4950,6 +5068,9 @@ const STR = {
   "import.carregar": ["Carregar PGN", "Load PGN"],
   "import.arquivo":  ["Arquivo .pgn", ".pgn file"],
   "import.arraste":  ["arraste um arquivo .pgn aqui", "drop a .pgn file here"],
+
+  "buscar.site.aria":    ["Site de xadrez", "Chess site"],
+  "buscar.usuario.aria": ["Nome de usuário no site escolhido", "Username on the chosen site"],
 
   "salvas.titulo":      ["Análises salvas", "Saved analyses"],
   "salvas.dica":        ["As análises ficam guardadas neste navegador.", "Analyses are kept in this browser."],
@@ -5343,6 +5464,7 @@ const S = {
   cancel: false,
   explore: null,    // {chess, sanLine[]}
   sel: null,        // casa selecionada
+  cursor: "e1",     // casa sob o cursor de teclado (ver "camada acessível")
   deep: false,
   abertura: null,   // {eco, nome, ply} — abertura identificada na base ECO
 };
@@ -6275,6 +6397,53 @@ function finishAnalysis() {
 function loteNoInterativo() { return S.analyzing && !Pool.motores.length; }
 
 /* ============================================================
+   Região viva — o que o leitor de tela ouve sem ir procurar
+   ------------------------------------------------------------
+   UM nó (#live, role=status, aria-live=polite, aria-atomic) e uma regra:
+   uma frase por ação do usuário.
+
+   O QUE PASSA POR AQUI: o lance ao navegar a partida ("Lance 12, Brancas:
+   Nf3, Melhor"), a seleção e o cancelamento no tabuleiro, o lance jogado no
+   modo exploração e o veredito de cada exercício do treino.
+
+   O QUE NÃO PASSA, DE PROPÓSITO: a casa sob o cursor. Ela é o rótulo da
+   célula que acabou de receber foco, e o leitor de tela já lê o rótulo do
+   que ganha foco — repetir aqui seria anunciar duas vezes a mesma coisa.
+   Pelo mesmo motivo a frase idêntica à anterior é engolida: reatribuir o
+   mesmo texto troca o nó e faria o leitor reler o que ele acabou de ler.
+   ============================================================ */
+let ultimoAviso = "";
+function anunciar(txt) {
+  const el = $("live");
+  if (!el) return;
+  const s = String(txt == null ? "" : txt).replace(/\s+/g, " ").trim();
+  if (s === ultimoAviso) return;
+  ultimoAviso = s;
+  el.textContent = s;
+}
+
+/** Frase de um lance da partida: serve à região viva e ao rótulo do botão
+    do lance na lista — os dois dizem exatamente a mesma coisa. */
+function anuncioDoLance(ply) {
+  if (!ply) return tr("aviso.inicio");
+  const m = S.moves[ply - 1];
+  if (!m) return "";
+  const pm = S.perMove[ply - 1];
+  const d = { n: m.num, cor: tr(m.color === "w" ? "lado.brancas" : "lado.pretas"), san: m.san };
+  if (pm && pm.cls) { d.cls = clsNome(pm.cls); return tr("lance.aria.cls", d); }
+  return tr("lance.aria", d);
+}
+
+/** Depois de um innerHTML, o foco que estava dentro cairia no <body> e o
+    teclado perderia o lugar. Devolve ao mesmo botão (pelo id) ou ao primeiro. */
+function devolverFoco(caixa, id) {
+  if (!caixa) return;
+  const mesmo = id ? $(id) : null;
+  const alvo = mesmo && caixa.contains(mesmo) ? mesmo : caixa.querySelector("button");
+  if (alvo && alvo.focus) alvo.focus();
+}
+
+/* ============================================================
    Tabuleiro
    ============================================================ */
 const FILES = "abcdefgh";
@@ -6500,6 +6669,9 @@ function renderBoard() {
 
   // setas + selo de classificação
   if (!S.explore) drawAnnotations(gA, gB);
+
+  // e o mesmo tabuleiro, dito com palavras (ver "camada acessível")
+  atualizarGrade(ch);
 }
 
 function lastMove() {
@@ -6558,13 +6730,152 @@ function drawAnnotations(gA, gB) {
   }
 }
 
-/* ---------- interação (explorar variações) ---------- */
-$("board").addEventListener("click", (ev) => {
-  const rect = ev.currentTarget.getBoundingClientRect();
-  const x = ((ev.clientX - rect.left) / rect.width) * 800;
-  const y = ((ev.clientY - rect.top) / rect.height) * 800;
-  const sq = xyToSq(x, y);
+/* ============================================================
+   Camada acessível do tabuleiro — cursor de casa por teclado
+   ------------------------------------------------------------
+   POR QUE UMA GRADE HTML POR CIMA DO SVG, e não papéis ARIA nos <rect>:
+   o desenho do tabuleiro é um SVG que muda a cada lance, e ARIA dentro de
+   SVG é a parte mais irregular do suporte de leitor de tela (foco em
+   elementos SVG e leitura de <title> variam de navegador para navegador).
+   O que é uniforme desde sempre é HTML com papel, rótulo e tabindex. Então:
+   o SVG fica aria-hidden e desenha; 64 <div> transparentes por cima têm o
+   papel, o rótulo e o foco. Nenhum pixel muda de lugar — a grade é 8×8 de
+   frações iguais sobre um quadro quadrado, as células caem sobre as casas.
+
+   POR QUE role="grid" E NÃO role="application":
+   "application" desliga o modo de leitura do leitor de tela para tudo que
+   está dentro e passa a responsabilidade de CADA tecla para o app — inclusive
+   as que o usuário já tem no dedo para ler a tela. "grid" é o que o tabuleiro
+   é: uma matriz navegável de células. O leitor já sabe anunciar linha, coluna
+   e conteúdo, já entende tabindex rotativo (uma parada de tabulação para a
+   grade inteira, setas por dentro), e o usuário não precisa aprender nada
+   novo. É o padrão "layout grid" do APG, o mesmo de uma agenda mensal.
+
+   O CURSOR: S.cursor guarda uma CASA (e4), não uma posição na tela. Girar o
+   tabuleiro move o cursor junto com a casa, que é o que o olho espera. Quem
+   converte casa ↔ posição visual é o mesmo par sqXY/xyToSq do desenho, então
+   girado ou não, as setas andam para onde apontam.
+   ============================================================ */
+const gradeCels = [];                     // 64 células, em ordem VISUAL
+
+/** Casa na posição visual i (0 = canto superior esquerdo do que está na tela). */
+function casaDoIndice(i) {
+  const c = i % 8, r = (i - c) / 8;
+  return xyToSq(c * 100 + 50, r * 100 + 50);
+}
+/** Posição visual da casa sq. */
+function indiceDaCasa(sq) {
+  const [x, y] = sqXY(sq);
+  return (y / 100) * 8 + x / 100;
+}
+function destinosDe(ch, sq) {
+  try { return ch.moves({ square: sq, verbose: true }).map((m) => m.to); }
+  catch (e) { return []; }
+}
+/** "e4, peão branco" — coordenada primeiro, que é como se fala uma casa.
+    A cor vem colada no nome da peça (pc.wp = "peão branco") porque em
+    português o adjetivo concorda: torre BRANCA, peão BRANCO. */
+function rotuloDaCasa(sq, ch, destinos) {
+  const p = ch.get(sq);
+  const base = p ? sq + ", " + tr("pc." + p.color + p.type) : tr("casa.vazia", { casa: sq });
+  if (S.sel === sq) return tr("casa.selecionada", { base });
+  if (destinos && destinos.indexOf(sq) >= 0) return tr("casa.destino", { base });
+  return base;
+}
+
+function montarGrade() {
+  const g = $("boardGrid");
+  if (!g || gradeCels.length) return;
+  for (let r = 0; r < 8; r++) {
+    const linha = document.createElement("div");
+    linha.className = "brow";
+    linha.setAttribute("role", "row");
+    for (let c = 0; c < 8; c++) {
+      const cel = document.createElement("div");
+      cel.className = "sq";
+      cel.setAttribute("role", "gridcell");
+      cel.tabIndex = -1;
+      cel.dataset.i = r * 8 + c;
+      linha.appendChild(cel);
+      gradeCels.push(cel);
+    }
+    g.appendChild(linha);
+  }
+  g.addEventListener("keydown", teclaNoTabuleiro);
+  /* O mouse não muda de dono: a célula só repassa a casa. O preventDefault do
+     mousedown impede que o clique roube o foco — quem estava navegando os
+     lances com as setas continua navegando os lances depois de clicar. O
+     leitor de tela aciona por click sintético, sem mousedown, e chega aqui. */
+  g.addEventListener("mousedown", (e) => e.preventDefault());
+  g.addEventListener("click", (e) => {
+    const cel = e.target.closest && e.target.closest(".sq");
+    if (cel) clicarCasa(casaDoIndice(+cel.dataset.i));
+  });
+}
+
+/** Rótulo e tabindex das 64 células, a cada desenho do tabuleiro. */
+function atualizarGrade(ch) {
+  if (!gradeCels.length) return;
+  if (!/^[a-h][1-8]$/.test(S.cursor)) S.cursor = "e1";
+  const destinos = S.sel ? destinosDe(ch, S.sel) : null;
+  const iCursor = indiceDaCasa(S.cursor);
+  const ativo = document.activeElement;
+  const tinhaFoco = !!(ativo && ativo.classList && ativo.classList.contains("sq"));
+  for (let i = 0; i < 64; i++) {
+    const cel = gradeCels[i], sq = casaDoIndice(i);
+    cel.dataset.sq = sq;
+    const rot = rotuloDaCasa(sq, ch, destinos);
+    if (cel.getAttribute("aria-label") !== rot) cel.setAttribute("aria-label", rot);
+    const t = i === iCursor ? 0 : -1;
+    if (cel.tabIndex !== t) cel.tabIndex = t;
+  }
+  // girar o tabuleiro com o cursor em cena: o foco segue a casa, não o pixel
+  if (tinhaFoco && gradeCels[iCursor] !== ativo) gradeCels[iCursor].focus();
+}
+
+function focarCursor() {
+  const cel = gradeCels[indiceDaCasa(S.cursor)];
+  if (cel && cel.focus) cel.focus();
+}
+function moverCursor(i) {
+  const sq = casaDoIndice(i);
   if (!sq) return;
+  S.cursor = sq;
+  for (let k = 0; k < 64; k++) gradeCels[k].tabIndex = k === i ? 0 : -1;
+  gradeCels[i].focus();     // o rótulo da casa é anunciado pelo foco, não pela região viva
+}
+
+/* As teclas que o tabuleiro consome quando tem o foco. É esta lista que
+   resolve o conflito com as setas da navegação de lances: aqui elas movem o
+   cursor de casa; em qualquer outro lugar da tela continuam passando lances. */
+const TECLAS_DA_GRADE = {
+  ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+};
+function teclaNoTabuleiro(e) {
+  if (!e.key || e.ctrlKey || e.metaKey || e.altKey) return;
+  const cel = e.target.closest && e.target.closest(".sq");
+  if (!cel) return;
+  const i = +cel.dataset.i, c = i % 8, r = (i - c) / 8;
+  const d = TECLAS_DA_GRADE[e.key];
+  if (d) moverCursor(Math.min(7, Math.max(0, r + d[1])) * 8 + Math.min(7, Math.max(0, c + d[0])));
+  else if (e.key === "Home") moverCursor(r * 8);            // padrão de grade:
+  else if (e.key === "End") moverCursor(r * 8 + 7);         // extremos da linha
+  else if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") clicarCasa(casaDoIndice(i));
+  else if (e.key === "Escape") {
+    if (!S.sel) return;                                     // nada a cancelar: deixa passar
+    S.sel = null; renderBoard(); anunciar(tr("aviso.cancelou"));
+  } else return;
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+/* ---------- interação (explorar variações) ----------
+   Uma função só para o clique do mouse, o clique da célula e o Enter do
+   teclado: os três fazem exatamente o mesmo, e é isso que garante que o
+   modo exploração e o treino se completem sem mouse. */
+function clicarCasa(sq) {
+  if (!sq) return;
+  S.cursor = sq;
   const ch = currentChess();
   if (S.sel) {
     const opts = ch.moves({ square: S.sel, verbose: true }).filter((m) => m.to === sq);
@@ -6575,8 +6886,21 @@ $("board").addEventListener("click", (ev) => {
     }
   }
   const p = ch.get(sq);
+  const tinha = S.sel;
   S.sel = p && p.color === ch.turn() ? sq : null;
   renderBoard();
+  if (S.sel) {
+    const n = destinosDe(ch, S.sel).length;
+    anunciar(!n ? tr("aviso.semDestino", { casa: sq })
+      : tr(n === 1 ? "aviso.selecionou1" : "aviso.selecionou", { casa: sq, n }));
+  } else if (tinha) anunciar(tr("aviso.cancelou"));
+}
+
+$("board").addEventListener("click", (ev) => {
+  const rect = ev.currentTarget.getBoundingClientRect();
+  const x = ((ev.clientX - rect.left) / rect.width) * 800;
+  const y = ((ev.clientY - rect.top) / rect.height) * 800;
+  clicarCasa(xyToSq(x, y));
 });
 
 function makeExploreMove(mv) {
@@ -6590,6 +6914,7 @@ function makeExploreMove(mv) {
   if (feito) animNext = { m: feito, dir: 1 };
   S.exploreEval = null;
   somDoLance(feito && feito.san);
+  if (feito) anunciar(tr("aviso.jogou", { san: feito.san }));
   renderBoard(); renderEvalBar();
   analyzeCurrent(true);
 }
@@ -6638,13 +6963,22 @@ function renderEvalBar() {
   t.style.color = whiteAhead ? "#15171a" : "#d9dce0";
   if (S.flipped) { $("evalWhite").style.bottom = "auto"; $("evalWhite").style.top = "0"; }
   else { $("evalWhite").style.top = "auto"; $("evalWhite").style.bottom = "0"; }
+  /* a barra é role="img": uma altura não se lê, então o rótulo diz o número.
+     Não é região viva de propósito — ela mudaria a cada lance do motor. */
+  $("evalbar").setAttribute("aria-label",
+    !pos || !txt ? tr("aval.sem")
+    : txt === "0.0" ? tr("aval.igual")
+    : tr(whiteAhead ? "aval.brancas" : "aval.pretas", { v: txt }));
 }
 
-/** Selo do lance. `mudo` tira o <title> de quem já mostra o nome ao lado. */
+/** Selo do lance. `mudo` tira o <title> de quem já mostra o nome ao lado — e,
+    sem título, o selo deixa de ser uma imagem para virar enfeite: role="img"
+    sem nome acessível é um elemento que o leitor de tela anuncia vazio. */
 function icon(cls, size, mudo) {
   const c = CLS[cls];
+  const papel = mudo ? 'aria-hidden="true"' : 'role="img"';
   const titulo = mudo ? "" : `<title>${esc(clsDica(cls))}</title>`;
-  return `<svg class="ic" viewBox="0 0 24 24" width="${size||16}" height="${size||16}" role="img">${titulo}
+  return `<svg class="ic" viewBox="0 0 24 24" width="${size||16}" height="${size||16}" ${papel}>${titulo}
     <circle cx="12" cy="12" r="11" fill="${c.cor}"/>
     <text x="12" y="17" text-anchor="middle" font-size="13" font-weight="800" fill="#0e1a06">${c.sym}</text></svg>`;
 }
@@ -6676,20 +7010,31 @@ function renderMoves() {
   });
   highlightMove();
 }
+/* O lance é <button>, não <div>: sempre foi clicável, mas como <div> ficava
+   fora da ordem de tabulação e se anunciava como texto. O rótulo acessível
+   diz por extenso o que os pixels dizem por símbolo ("Lance 12, Brancas:
+   Nf3, Melhor"); o selo colorido continua no <title> do ícone, para o mouse. */
 function moveCell(i) {
   const m = S.moves[i], pm = S.perMove[i], pos = S.positions[i + 1];
   const ev = pos ? fmtEval(pos) : "";
-  return `<div class="mv" data-ply="${i + 1}" data-i="${i}">${pm ? icon(pm.cls) : ""}
-    <span>${m.san}</span><span class="ev">${ev}</span></div>`;
+  return `<button type="button" class="mv" data-ply="${i + 1}" data-i="${i}"
+    aria-label="${esc(anuncioDoLance(i + 1))}">${pm ? icon(pm.cls) : ""}
+    <span>${m.san}</span><span class="ev">${ev}</span></button>`;
 }
 function renderMoveRow(i) {
   const el = document.querySelector('.mv[data-i="' + i + '"]');
   if (!el) return;
   const m = S.moves[i], pm = S.perMove[i], pos = S.positions[i + 1];
   el.innerHTML = `${pm ? icon(pm.cls) : ""}<span>${m.san}</span><span class="ev">${pos ? fmtEval(pos) : ""}</span>`;
+  el.setAttribute("aria-label", anuncioDoLance(i + 1));   // a classificação acabou de chegar
 }
 function highlightMove() {
-  document.querySelectorAll(".mv").forEach((el) => el.classList.toggle("on", +el.dataset.ply === S.ply));
+  document.querySelectorAll(".mv").forEach((el) => {
+    const on = +el.dataset.ply === S.ply;
+    el.classList.toggle("on", on);
+    if (on) el.setAttribute("aria-current", "true");
+    else el.removeAttribute("aria-current");
+  });
   const on = document.querySelector(".mv.on");
   if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
 }
@@ -6856,7 +7201,7 @@ function renderEngineTab(live) {
     san.forEach((m, k) => {
       if (m.color === "w") moves += `<b>${m.num}.</b> `;
       else if (first) moves += `<b>${m.num}...</b> `;
-      moves += `<span class="pvmove" data-l="${li}" data-k="${k}">${m.san}</span> `;
+      moves += `<button type="button" class="pvmove" data-l="${li}" data-k="${k}">${m.san}</button> `;
       first = false;
     });
     html += `<div class="pvline"><span class="sc${neg ? " neg" : ""}">${txt}</span>
@@ -6957,6 +7302,9 @@ function goTo(ply, opts) {
     const i = alvo - 1;
     somDoLance(S.moves[i] && S.moves[i].san, S.perMove[i] && S.perMove[i].cls);
   }
+  /* o mesmo que o som diz por timbre, dito por extenso — inclusive no play
+     automático, que sem isto seria um filme mudo para quem não vê a tela */
+  anunciar(anuncioDoLance(alvo));
 }
 $("btnStart").onclick = () => goTo(0);
 $("btnPrev").onclick  = () => goTo(S.ply - 1);
@@ -7014,9 +7362,34 @@ $("btnSound").onclick = () => {
 ["pointerdown", "keydown"].forEach((ev) =>
   document.addEventListener(ev, () => Snd.init(), { once: true }));
 
+/* ---------- atalhos globais ----------
+   AS SETAS TÊM DOIS DONOS, e o desempate é o foco — explicitamente:
+
+   • foco numa casa do tabuleiro (role=gridcell) → as setas movem o cursor de
+     casa, Enter seleciona/joga, Esc cancela;
+   • foco numa aba (role=tab) → as setas trocam de aba (padrão tablist);
+   • em qualquer outro lugar → as setas passam os lances, como sempre foi.
+
+   Os dois ouvintes de dentro já chamam stopPropagation; esta lista é a
+   garantia escrita de quem manda, e não depende da ordem dos ouvintes.
+   Enter e espaço sobre um botão ou link também param aqui: o navegador já
+   aciona o elemento, e sem isto o espaço num botão ainda ligava o play. */
+const TECLAS_DISPUTADAS = {
+  ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1,
+  Home: 1, End: 1, Enter: 1, " ": 1, Spacebar: 1, Escape: 1,
+};
+function focoDeOutroDono(e) {
+  const alvo = e.target;
+  if (!alvo || !alvo.closest) return false;
+  if (TECLAS_DISPUTADAS[e.key] && alvo.closest('#boardGrid,[role="tablist"]')) return true;
+  if ((e.key === "Enter" || e.key === " " || e.key === "Spacebar") &&
+      /^(button|a)$/i.test(alvo.tagName || "")) return true;
+  return false;
+}
 document.addEventListener("keydown", (e) => {
   if (!e.key || e.ctrlKey || e.metaKey || e.altKey) return;
   if (/input|textarea|select/i.test(e.target.tagName)) return;
+  if (focoDeOutroDono(e)) return;
   if (e.key === "ArrowLeft") { goTo(S.ply - 1); e.preventDefault(); }
   else if (e.key === "ArrowRight") { goTo(S.ply + 1); e.preventDefault(); }
   else if (e.key === "Home") goTo(0);
@@ -7153,12 +7526,37 @@ $("btnCopyPgn").onclick = () => {
     copiar(c.pgn(), "toast.pgnCopiado");
   } catch (e) { copiar($("pgnBox").value, "toast.pgnCopiado"); }
 };
-document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
+/* ---------- abas: padrão tablist ----------
+   Uma parada de tabulação para o conjunto (tabindex rotativo) e as setas
+   andando entre as abas, com o painel trocando junto — é o que o leitor de
+   tela e o teclado esperam de role=tab desde sempre. aria-selected é o que
+   diz "esta é a aba aberta"; a classe .on é só a pintura. */
+const abasBtns = () => [...document.querySelectorAll('.tabs [role="tab"]')];
+abasBtns().forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
 function showTab(name) {
-  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+  abasBtns().forEach((b) => {
+    const on = b.dataset.tab === name;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+    b.tabIndex = on ? 0 : -1;
+  });
   document.querySelectorAll(".tabpane").forEach((p) => p.classList.toggle("on", p.id === "tab-" + name));
   if (name === "report") drawGraph();
 }
+const barraAbas = document.querySelector(".tabs");
+if (barraAbas) barraAbas.addEventListener("keydown", (e) => {
+  const bs = abasBtns(), i = bs.indexOf(e.target);
+  if (i < 0) return;
+  let k;
+  if (e.key === "ArrowRight" || e.key === "ArrowDown") k = (i + 1) % bs.length;
+  else if (e.key === "ArrowLeft" || e.key === "ArrowUp") k = (i - 1 + bs.length) % bs.length;
+  else if (e.key === "Home") k = 0;
+  else if (e.key === "End") k = bs.length - 1;
+  else return;
+  e.preventDefault(); e.stopPropagation();
+  showTab(bs[k].dataset.tab);
+  bs[k].focus();
+});
 let toastT;
 function toast(msg) {
   const t = $("toast");
@@ -7461,11 +7859,16 @@ function treinoIniciar(fila) {
   const pm = document.querySelector(".panel-main");
   if (pm) pm.style.display = "none";
   treinoPosicao();
+  /* o botão que iniciou o treino acabou de ser escondido junto com as abas:
+     sem levar o foco, o teclado voltaria para o começo da página. O destino
+     é o tabuleiro — o exercício é achar um lance. */
+  focarCursor();
 }
 
 function treinoSair() {
   const t = S.treino;
   if (!t) return;
+  const doTeclado = focoNoTreino();
   treinoPararLinha();
   S.treino = null;
   S.explore = null; S.exploreEval = null; S.sel = null;
@@ -7477,6 +7880,11 @@ function treinoSair() {
   renderPlayers(); renderBoard(); renderEvalBar(); renderEngineTab();
   highlightMove(); drawGraph();
   showTab(t.volta.aba);
+  // o painel que tinha o foco não existe mais: devolve para a aba que reabriu
+  if (doTeclado) {
+    const aba = document.querySelector('.tabs [data-tab="' + t.volta.aba + '"]');
+    if (aba) aba.focus();
+  }
 }
 $("btnTrainExit").onclick = treinoSair;
 
@@ -7536,6 +7944,7 @@ function treinoJogada(mv) {
     t.certo = feito.san;
     treinoMontarLinha();
     renderBoard();
+    anunciar(tr("treino.acertou", { san: feito.san }));   // o veredito, uma vez
     treinoTocar(1);                     // a continuação segue de onde ele parou
     return;
   }
@@ -7544,6 +7953,7 @@ function treinoJogada(mv) {
   t.fase = "errou";
   t.travado = true; t.desfazer = true;
   renderBoard(); renderTreino();
+  anunciar(tr("treino.errou", { san: feito.san }));
   t.timer = setTimeout(() => {
     if (S.treino !== t) return;
     treinoDesfazerErrado();
@@ -7551,12 +7961,23 @@ function treinoJogada(mv) {
   }, TREINO_DESFAZ);
 }
 
+/* Quem chegou aqui pelo teclado está com o foco dentro do painel do treino.
+   Nos passos em que o botão apertado desaparece ("Dica", "Tentar de novo",
+   "Próximo erro"), o lugar certo do foco não é outro botão qualquer — é o
+   tabuleiro, que é onde a próxima ação acontece. */
+function focoNoTreino() {
+  const a = document.activeElement, p = $("panelTrain");
+  return !!(a && p && p.contains(a));
+}
+
 function treinoTentarDeNovo() {
   const t = S.treino;
   if (!t) return;
+  const doTeclado = focoNoTreino();
   treinoDesfazerErrado();
   t.fase = "pergunta"; t.errado = null;
   renderBoard(); renderTreino();
+  if (doTeclado) focarCursor();
 }
 
 function treinoRevelar() {
@@ -7569,16 +7990,19 @@ function treinoRevelar() {
   treinoMontarLinha();
   t.certo = t.linha.length ? t.linha[0].san : "";
   renderBoard();
+  anunciar(tr("treino.eraEsse", { san: t.certo }));
   treinoTocar(0);                       // aqui até o lance certo é mostrado
 }
 
 function treinoProximo() {
   const t = S.treino;
   if (!t) return;
+  const doTeclado = focoNoTreino();
   treinoPararLinha();
   if (t.k + 1 >= t.fila.length) { t.fase = "resumo"; renderTreino(); return; }
   t.k++;
   treinoPosicao();
+  if (doTeclado) focarCursor();
 }
 
 /* ---------- a continuação ----------
@@ -7646,6 +8070,11 @@ function renderTreino() {
   const t = S.treino;
   if (!t) return;
   const body = $("trainBody");
+  /* o painel é redesenhado por innerHTML a cada passo; sem isto, quem chegou
+     aqui pelo teclado perderia o foco para o <body> a cada Dica ou Próximo */
+  const ativo = document.activeElement;
+  const eraDentro = !!(ativo && body.contains(ativo));
+  const idAntes = eraDentro ? ativo.id : "";
 
   if (t.fase === "resumo") {
     const c = { primeira: 0, dica: 0, resposta: 0 };
@@ -7664,6 +8093,8 @@ function renderTreino() {
       </div>`;
     if ($("btnTrainRedo")) $("btnTrainRedo").onclick = () => treinoIniciar(faltaram);
     if ($("btnTrainDone")) $("btnTrainDone").onclick = treinoSair;
+    if (eraDentro) devolverFoco(body, idAntes);
+    anunciar(tr("treino.resumo.titulo"));
     return;
   }
 
@@ -7719,9 +8150,14 @@ function renderTreino() {
 
   body.innerHTML = html;
   if ($("btnTrainRetry")) $("btnTrainRetry").onclick = treinoTentarDeNovo;
-  if ($("btnTrainHint"))  $("btnTrainHint").onclick  = () => { t.dica = true; renderTreino(); };
+  if ($("btnTrainHint"))  $("btnTrainHint").onclick  = () => {
+    const doTeclado = focoNoTreino();
+    t.dica = true; renderTreino();
+    if (doTeclado) focarCursor();       // a dica diz a peça; agora é jogar
+  };
   if ($("btnTrainShow"))  $("btnTrainShow").onclick  = treinoRevelar;
   if ($("btnTrainNext"))  $("btnTrainNext").onclick  = treinoProximo;
+  if (eraDentro) devolverFoco(body, idAntes);
 }
 
 /* ============================================================
@@ -8051,6 +8487,9 @@ $("btnExportPng").onclick = exportarImagem;
 function aplicarIdioma() {
   // a abertura vem da base ECO, que fala as duas línguas
   if (S.fens.length > 1) S.abertura = aberturaDeFens(S.fens, S.headers);
+  /* a região viva guarda a última frase dita, na língua de então: trocar de
+     idioma não é hora de repetir nada, e sim de esvaziar. */
+  anunciar("");
 
   $("btnAnalyze").textContent = tr(S.analyzing ? "btn.parar" : "btn.analisar");
   atualizarPlay();                     // o title do play depende de estar tocando
@@ -8082,6 +8521,7 @@ $("btnLangEn").onclick = () => I18.definir("en");
 I18.aoTrocar(aplicarIdioma);
 
 /* ---------- início ---------- */
+montarGrade();          // as 64 células antes do primeiro desenho do tabuleiro
 aplicarIdioma();
 Engine.boot().catch(() => {});
 })();
