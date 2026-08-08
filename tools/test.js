@@ -87,8 +87,8 @@ const { window, $, wait, ok, conf, PGN, OPERA, t1 } = H;
   conf("no fim da partida o lance jogado ganha selo e não há seta de melhor lance",
     $("gBadge").childNodes.length === 1 && $("gArrows").childNodes.length === 0);
   $("btnPrev").click(); await wait(50);
-  console.log("aba motor:", $("engineLines").textContent.replace(/\s+/g, " ").trim().slice(0, 200));
-  conf("a aba do motor mostra avaliação e profundidade",
+  console.log("painel do motor:", $("engineLines").textContent.replace(/\s+/g, " ").trim().slice(0, 200));
+  conf("o painel do motor mostra avaliação e profundidade",
     /prof\.\s*\d+/.test($("engineLines").textContent));
 
   console.log("\n== interações ==");
@@ -179,14 +179,22 @@ const { window, $, wait, ok, conf, PGN, OPERA, t1 } = H;
     profVal:   $("depth").value,
     vel:       [...$("speed").options].map((o) => o.text).join("|"),
     velVal:    $("speed").value,
-    abas:      [...window.document.querySelectorAll(".tabs button")].map((b) => b.textContent.trim()).join("|"),
+    /* As abas viraram os nomes das seções do trilho (relatório, lances,
+       motor) mais o resumo dos painéis recolhíveis (importar, ajuda): é o
+       mesmo texto de navegação, no lugar novo. */
+    abas:      [...window.document.querySelectorAll(".sec-h h2, .rail details.disc > summary")]
+                 .map((b) => b.textContent.trim()).join("|"),
     abertura:  txt1(window.document.querySelector(".opening .nm")),
     teoria:    txt1(window.document.querySelector(".opening .hint")),
     relLbl:    [...window.document.querySelectorAll(".report-grid .lbl")].map((e) => e.textContent.trim()).join(", "),
     relUnid:   txt1(window.document.querySelector(".accbox .u")),
     precisao:  [...window.document.querySelectorAll(".accbox .v")].map((e) => e.textContent.trim()).join(" / "),
-    momentos:  [...window.document.querySelectorAll("[data-goto] .hint")].map((e) => e.textContent.trim()).join(" | "),
-    grafico:   txt1(window.document.querySelector(".caption")),
+    /* o texto por extenso do momento decisivo é o rótulo acessível do botão;
+       o que se vê é o −24%, que é igual nas duas línguas */
+    momentos:  [...window.document.querySelectorAll("[data-goto]")]
+                 .map((e) => (e.getAttribute("aria-label") || "").trim()).join(" | "),
+    grafico:   (window.document.querySelector("#graph") || { getAttribute: () => "" })
+                 .getAttribute("aria-label") || "",
     selos:     [...window.document.querySelectorAll(".mv .ic title")].map((e) => e.textContent.trim()),
     nSelos:    window.document.querySelectorAll(".mv .ic").length,
     san:       [...window.document.querySelectorAll(".mv span:not(.ev)")].map((e) => e.textContent.trim()).join(" "),
@@ -220,7 +228,7 @@ const { window, $, wait, ok, conf, PGN, OPERA, t1 } = H;
               en.tagline + " · " + en.analisar + " · " + en.nova);
   par("profundidade", pt1.prof, en.prof);
   par("velocidade", pt1.vel, en.vel);
-  par("abas", pt1.abas, en.abas);
+  par("seções", pt1.abas, en.abas);
   par("abertura", pt1.abertura + " · " + pt1.teoria, en.abertura + " · " + en.teoria);
   par("relatório", pt1.relLbl, en.relLbl);
   par("unidade", pt1.relUnid, en.relUnid);
@@ -237,7 +245,8 @@ const { window, $, wait, ok, conf, PGN, OPERA, t1 } = H;
   conf("TOPO mudou", mudou(pt1.titulo, en.titulo) && mudou(pt1.tagline, en.tagline) &&
     mudou(pt1.analisar, en.analisar) && mudou(pt1.nova, en.nova) && mudou(pt1.prof, en.prof) &&
     mudou(pt1.vel, en.vel), "| <html lang>: " + pt1.lang + " → " + en.lang);
-  conf("ABAS mudaram", mudou(pt1.abas, en.abas));
+  conf("NOMES DAS SEÇÕES E DOS PAINÉIS mudaram", mudou(pt1.abas, en.abas),
+    "| " + pt1.abas + " → " + en.abas);
   conf("RELATÓRIO mudou", mudou(pt1.relLbl, en.relLbl) && mudou(pt1.relUnid, en.relUnid) &&
     mudou(pt1.grafico, en.grafico) && mudou(pt1.abertura, en.abertura));
   conf("momentos decisivos mudaram", pt1.momentos ? mudou(pt1.momentos, en.momentos) : true,
@@ -308,6 +317,8 @@ const { window, $, wait, ok, conf, PGN, OPERA, t1 } = H;
 
   // reabre a análise salva: nada de motor
   const goAntes = H.buscas();
+  // a lista de salvas mora no painel recolhível de importar; abrir é um clique
+  $("paneImport").open = true;
   window.document.querySelector("#savedList [data-open]").click();
   await wait(300);
   const selosDepois = window.document.querySelectorAll(".mv .ic").length;
@@ -319,9 +330,15 @@ const { window, $, wait, ok, conf, PGN, OPERA, t1 } = H;
   conf("sem usuário conhecido a reaberta abre com brancas embaixo",
     $("evalWhite").style.bottom !== "auto",
     "| " + $("nmBot").textContent + " embaixo / " + $("nmTop").textContent + " em cima");
-  conf("reabrir cai no relatório, com gráfico e botões de exportar",
-    t1(window.document.querySelector(".tabs button.on")) === "Relatório"
-    && !!$("graph") && $("exportRow").style.display === "");
+  /* Não há mais aba para "cair" em cima: o relatório está sempre na tela.
+     O que se confere agora é o mesmo de antes, um passo mais fundo — que ele
+     está de fato preenchido (precisão dos dois lados), com gráfico e com o
+     painel de exportar disponível. */
+  conf("reabrir devolve o relatório preenchido, com gráfico e exportação à mão",
+    precisaoReaberta.split(" / ").filter((v) => /\d/.test(v)).length === 2
+    && !!$("graph") && $("exportRow").style.display === ""
+    && $("exportRow").querySelector("summary") && !!$("btnExportPgn"),
+    "| precisão: " + precisaoReaberta);
   conf("reabrir não duplica o registro",
     JSON.parse(window.localStorage.getItem(CHAVE) || "[]").length === 1);
 

@@ -741,7 +741,9 @@ function loadPgn(pgn) {
   renderPlayers(); renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
   $("btnAnalyze").disabled = false;
   renderReportBody();
-  showTab("moves");
+  /* importar é tarefa de uma vez por partida: entrou partida, o painel se
+     recolhe e devolve a altura para o relatório, os lances e o motor. */
+  fecharImport();
   return true;
 }
 
@@ -958,7 +960,6 @@ async function analyzeGame() {
     S.accuracy = gameAccuracy(S.positions, S.moves, S.perMove);
     renderReport();
     salvarAnalise();
-    showTab("report");
     Snd.pronto();
     status("status.concluida", null, "status.precisao",
            () => ({ w: fmtPct(S.accuracy.w, 1), b: fmtPct(S.accuracy.b, 1) }));
@@ -1650,43 +1651,46 @@ function renderReport() {
       <div class="lbl" title="${esc(clsDica(k))}"><span class="chip" style="background:${CLS[k].cor}"></span>${esc(clsNome(k))}</div>
       <div class="b" style="color:${CLS[k].cor}">${b}</div></div>`;
   }
-  // momentos-chave
+  /* Momentos-chave: cinco atalhos, não cinco parágrafos. O que se vê é o
+     lance e o que ele custou (−24%); a frase inteira, que é o texto que muda
+     de língua, é o rótulo acessível do botão — quem lê com o leitor de tela
+     ouve "12. Bxf7+, perdeu 24% de chance de vitória". */
   const key = S.perMove.map((pm, i) => ({ pm, i })).filter((x) => x.pm && x.pm.loss >= 10)
     .sort((a, b) => b.pm.loss - a.pm.loss).slice(0, 5);
   let keyHtml = "";
   if (key.length) {
-    keyHtml = `<h3 class="sub">${esc(tr("rel.momentos"))}</h3>`;
+    keyHtml = `<h3 class="sub">${esc(tr("rel.momentos"))}</h3><div class="keymoves">`;
     for (const k of key) {
       const m = S.moves[k.i];
       const n = m.num + (m.color === "w" ? ". " : "... ");
-      keyHtml += `<button class="btn ghost keymove" data-goto="${k.i + 1}">
-        ${icon(k.pm.cls, 15)}<b>${n}${m.san}</b>
-        <span class="hint">${esc(tr("rel.perdeu", { n: k.pm.loss.toFixed(0) }))}</span></button>`;
+      const perda = tr("rel.perdeu", { n: k.pm.loss.toFixed(0) });
+      keyHtml += `<button type="button" class="keymove" data-goto="${k.i + 1}"
+        aria-label="${esc(n + m.san + ", " + perda)}" title="${esc(perda)}">
+        ${icon(k.pm.cls, 14, true)}<b>${n}${m.san}</b>
+        <span class="ev">−${esc(k.pm.loss.toFixed(0))}%</span></button>`;
     }
+    keyHtml += "</div>";
   }
   // chamada do treino — só existe quando a partida tem o que treinar
   const filaTreino = filaDeErros(ladoDoUsuario(S.headers));
   let treinoHtml = "";
   if (filaTreino.length) {
-    treinoHtml = `<h3 class="sub">${esc(tr("treino.sub"))}</h3>
-      <button class="btn primary train-cta" id="btnTrainStart">
+    treinoHtml = `<button class="btn primary train-cta" id="btnTrainStart">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 4.8v14.4L19 12z"/></svg>
         <span>${esc(tr("treino.cta"))}</span>
         <span class="n">${esc(tr(filaTreino.length === 1 ? "treino.cta.n1" : "treino.cta.n",
                                  { n: filaTreino.length }))}</span>
-      </button>
-      <p class="hint" style="margin-top:9px">${esc(tr("treino.explica"))}</p>`;
+      </button>`;
   }
-  const unidade = esc(tr("rel.precisao"));
   $("reportBody").innerHTML = aberturaHtml(S.abertura) + `
     <div class="accbox">
       <div class="side"><div class="k">${esc(wName)}</div>
-        <div class="v">${fmtNum(S.accuracy.w, 1)}</div><div class="u">${unidade}</div></div>
+        <div class="v">${fmtNum(S.accuracy.w, 1)}</div></div>
       <div class="side"><div class="k">${esc(bName)}</div>
-        <div class="v">${fmtNum(S.accuracy.b, 1)}</div><div class="u">${unidade}</div></div>
+        <div class="v">${fmtNum(S.accuracy.b, 1)}</div></div>
+      <div class="u">${esc(tr("rel.precisao"))}</div>
     </div>
-    <canvas id="graph"></canvas>
-    <div class="caption">${esc(tr("rel.grafico"))}</div>
+    <canvas id="graph" role="img" aria-label="${esc(tr("rel.grafico"))}"></canvas>
     <div class="report-grid">${rows}</div>
     ${keyHtml}${treinoHtml}`;
   $("reportBody").querySelectorAll("[data-goto]").forEach((b) => (b.onclick = () => goTo(+b.dataset.goto)));
@@ -1951,13 +1955,14 @@ $("btnSound").onclick = () => {
 
    • foco numa casa do tabuleiro (role=gridcell) → as setas movem o cursor de
      casa, Enter seleciona/joga, Esc cancela;
-   • foco numa aba (role=tab) → as setas trocam de aba (padrão tablist);
    • em qualquer outro lugar → as setas passam os lances, como sempre foi.
 
-   Os dois ouvintes de dentro já chamam stopPropagation; esta lista é a
-   garantia escrita de quem manda, e não depende da ordem dos ouvintes.
-   Enter e espaço sobre um botão ou link também param aqui: o navegador já
-   aciona o elemento, e sem isto o espaço num botão ainda ligava o play. */
+   As abas tinham a terceira regra (setas trocando de aba) e sumiram junto com
+   o tablist; no lugar delas entrou o <summary> dos painéis recolhíveis, onde
+   o ESPAÇO é do navegador — é ele que abre e fecha o disclosure. Sem a linha
+   abaixo, o espaço num summary ainda ligava a reprodução por baixo.
+   Enter e espaço sobre um botão ou link param aqui pelo mesmo motivo: o
+   navegador já aciona o elemento. */
 const TECLAS_DISPUTADAS = {
   ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1,
   Home: 1, End: 1, Enter: 1, " ": 1, Spacebar: 1, Escape: 1,
@@ -1965,9 +1970,9 @@ const TECLAS_DISPUTADAS = {
 function focoDeOutroDono(e) {
   const alvo = e.target;
   if (!alvo || !alvo.closest) return false;
-  if (TECLAS_DISPUTADAS[e.key] && alvo.closest('#boardGrid,[role="tablist"]')) return true;
+  if (TECLAS_DISPUTADAS[e.key] && alvo.closest("#boardGrid")) return true;
   if ((e.key === "Enter" || e.key === " " || e.key === "Spacebar") &&
-      /^(button|a)$/i.test(alvo.tagName || "")) return true;
+      /^(button|a|summary)$/i.test(alvo.tagName || "")) return true;
   return false;
 }
 document.addEventListener("keydown", (e) => {
@@ -2093,7 +2098,7 @@ $("btnFetch").onclick = async () => {
    Diversos
    ============================================================ */
 $("btnAnalyze").onclick = analyzeGame;
-$("btnNew").onclick = () => { showTab("import"); $("pgnBox").focus(); };
+$("btnNew").onclick = () => abrirImport(true);
 $("btnDeep").onclick = () => analyzeCurrent(false);
 $("btnStopDeep").onclick = () => { Engine.stop(); };
 function copiar(txt, chaveOk) {
@@ -2110,37 +2115,20 @@ $("btnCopyPgn").onclick = () => {
     copiar(c.pgn(), "toast.pgnCopiado");
   } catch (e) { copiar($("pgnBox").value, "toast.pgnCopiado"); }
 };
-/* ---------- abas: padrão tablist ----------
-   Uma parada de tabulação para o conjunto (tabindex rotativo) e as setas
-   andando entre as abas, com o painel trocando junto — é o que o leitor de
-   tela e o teclado esperam de role=tab desde sempre. aria-selected é o que
-   diz "esta é a aba aberta"; a classe .on é só a pintura. */
-const abasBtns = () => [...document.querySelectorAll('.tabs [role="tab"]')];
-abasBtns().forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
-function showTab(name) {
-  abasBtns().forEach((b) => {
-    const on = b.dataset.tab === name;
-    b.classList.toggle("on", on);
-    b.setAttribute("aria-selected", on ? "true" : "false");
-    b.tabIndex = on ? 0 : -1;
-  });
-  document.querySelectorAll(".tabpane").forEach((p) => p.classList.toggle("on", p.id === "tab-" + name));
-  if (name === "report") drawGraph();
+/* ---------- painel de importar: <details> nativo ----------
+   Não sobrou nenhum widget de aba para o app administrar: relatório, lances e
+   motor estão os três na tela, e o que é de uso eventual é um <details>, que
+   já vem do navegador com teclado, foco e semântica de disclosure. Estas duas
+   funções são só quem abre e fecha o painel em nome de outra ação. */
+function abrirImport(foco) {
+  const d = $("paneImport");
+  if (d) d.open = true;
+  if (foco && $("pgnBox")) $("pgnBox").focus();
 }
-const barraAbas = document.querySelector(".tabs");
-if (barraAbas) barraAbas.addEventListener("keydown", (e) => {
-  const bs = abasBtns(), i = bs.indexOf(e.target);
-  if (i < 0) return;
-  let k;
-  if (e.key === "ArrowRight" || e.key === "ArrowDown") k = (i + 1) % bs.length;
-  else if (e.key === "ArrowLeft" || e.key === "ArrowUp") k = (i - 1 + bs.length) % bs.length;
-  else if (e.key === "Home") k = 0;
-  else if (e.key === "End") k = bs.length - 1;
-  else return;
-  e.preventDefault(); e.stopPropagation();
-  showTab(bs[k].dataset.tab);
-  bs[k].focus();
-});
+function fecharImport() {
+  const d = $("paneImport");
+  if (d) d.open = false;
+}
 let toastT;
 function toast(msg) {
   const t = $("toast");
@@ -2332,7 +2320,7 @@ function abrirSalva(id) {
   while (S.perMove.length < S.moves.length) S.perMove.push(null);
   S.accuracy = rec.acc && (rec.acc.w != null || rec.acc.b != null) ? rec.acc : null;
   renderPlayers(); renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
-  renderReport(); showTab("report");
+  renderReport(); fecharImport();
   toast(tr("toast.analiseRestaurada"));
 }
 
@@ -2360,7 +2348,7 @@ function renderSaved() {
     return `<div class="saved"><button data-open="${esc(r.id)}">
         <div><b>${esc(nomeLado(m.w, "w"))}</b> ${m.we ? "(" + esc(m.we) + ")" : ""} vs <b>${esc(nomeLado(m.b, "b"))}</b> ${m.be ? "(" + esc(m.be) + ")" : ""}</div>
         <div class="meta">${esc(m.res || "*")} · ${esc(quando)} · ${esc(tr("salvas.precisao", { v: acc }))}</div>
-      </button><button class="del" data-del="${esc(r.id)}" title="${esc(tr("salvas.apagar.dica"))}" aria-label="${esc(tr("salvas.apagar.aria"))}">${apagar}</button></div>`;
+      </button><button class="del" data-del="${esc(r.id)}" aria-label="${esc(tr("salvas.apagar.aria"))}">${apagar}</button></div>`;
   }).join("");
   box.querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => abrirSalva(b.dataset.open)));
   box.querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => {
@@ -2421,11 +2409,6 @@ function pvDoTreino() {
   return out;
 }
 
-function abaAtiva() {
-  const b = document.querySelector(".tabs button.on");
-  return b ? b.dataset.tab : "report";
-}
-
 /* ---------- entrar e sair ---------- */
 function treinoIniciar(fila) {
   const lado = ladoDoUsuario(S.headers);
@@ -2433,8 +2416,7 @@ function treinoIniciar(fila) {
   if (!f.length) { toast(tr("treino.vazio")); return; }
   pararPlay();
   if (!loteNoInterativo()) Engine.stop();
-  const volta = (S.treino && S.treino.volta) ||
-                { ply: S.ply, flipped: S.flipped, aba: abaAtiva() };
+  const volta = (S.treino && S.treino.volta) || { ply: S.ply, flipped: S.flipped };
   treinoPararLinha();
   S.treino = { fila: f, k: 0, lado, res: {}, fase: "pergunta", tentativas: 0,
                dica: false, errado: null, certo: "", linha: [], passo: 0,
@@ -2443,7 +2425,7 @@ function treinoIniciar(fila) {
   const pm = document.querySelector(".panel-main");
   if (pm) pm.style.display = "none";
   treinoPosicao();
-  /* o botão que iniciou o treino acabou de ser escondido junto com as abas:
+  /* o botão que iniciou o treino acabou de ser escondido junto com o deck:
      sem levar o foco, o teclado voltaria para o começo da página. O destino
      é o tabuleiro — o exercício é achar um lance. */
   focarCursor();
@@ -2463,11 +2445,12 @@ function treinoSair() {
   if (pm) pm.style.display = "";
   renderPlayers(); renderBoard(); renderEvalBar(); renderEngineTab();
   highlightMove(); drawGraph();
-  showTab(t.volta.aba);
-  // o painel que tinha o foco não existe mais: devolve para a aba que reabriu
+  /* O painel que tinha o foco não existe mais. Sem aba para onde voltar, o
+     destino é o botão que abriu o treino — que é onde o foco estava antes de
+     entrar, e de onde se entra de novo. */
   if (doTeclado) {
-    const aba = document.querySelector('.tabs [data-tab="' + t.volta.aba + '"]');
-    if (aba) aba.focus();
+    const volta = $("btnTrainStart") || $("btnAnalyze");
+    if (volta) volta.focus();
   }
 }
 $("btnTrainExit").onclick = treinoSair;

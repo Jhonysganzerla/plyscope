@@ -217,7 +217,7 @@ Plyscope ships two builds of the same Stockfish 17.1 lite and **picks one by its
 | served with `COOP: same-origin` + `COEP: require-corp` | `engine/stockfish-lite.js` | `hardwareConcurrency − 1`, capped at 8 |
 | anything else | `engine/stockfish-lite-single.js` | 1 |
 
-Those two headers make the page *cross-origin isolated*, which is the browser's condition for releasing `SharedArrayBuffer` — and without `SharedArrayBuffer` there is no threaded WebAssembly. The Windows, macOS and Linux launchers already send them, and so does Vercel. The **Engine** tab tells you which mode you're in.
+Those two headers make the page *cross-origin isolated*, which is the browser's condition for releasing `SharedArrayBuffer` — and without `SharedArrayBuffer` there is no threaded WebAssembly. The Windows, macOS and Linux launchers already send them, and so does Vercel. The **Engine** panel tells you which mode you're in.
 
 If multi-thread doesn't come up (old browser, tight memory), the app falls back to single-thread on its own, without a warning and without breaking anything.
 

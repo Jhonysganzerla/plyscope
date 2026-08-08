@@ -14,7 +14,34 @@ major**.
 
 ## [Não lançado]
 
-Nada ainda.
+### Mudado
+
+- **As quatro abas do trilho acabaram.** Relatório, lances e motor são agora
+  três seções empilhadas, visíveis ao mesmo tempo — eram as três coisas que se
+  consultam a cada lance e que escondiam umas às outras. Cada uma é uma região
+  com nome próprio (`<section aria-labelledby>` + cabeçalho), no lugar do
+  `role="tab"`/`tabpanel`, que não descrevia mais nada.
+- **Importar** e a nova **Legenda e atalhos** viraram painéis recolhíveis
+  (`<details>` nativo): um Enter para abrir, nenhum pixel enquanto fechados.
+  *Nova partida* reabre o de importar; carregar uma partida o recolhe.
+  A legenda dos selos, a ajuda das teclas do tabuleiro e os links do projeto
+  moram no de baixo. **Exportar** virou um recolhível dentro do relatório.
+- A linha de ajuda das teclas saiu de baixo do tabuleiro: são ~50 px que
+  viraram tabuleiro.
+- Relatório mais denso: precisão sem moldura e com uma unidade só para os dois
+  jogadores, gráfico mais baixo e momentos decisivos em selos de uma linha, com
+  a frase inteira (`perdeu 24% de chance de vitória`) no rótulo acessível.
+  O gráfico ganhou `role="img"` e nome acessível, que nunca teve.
+- Dez frases de interface a menos, nas duas línguas: o que explicava o óbvio
+  saiu, o que era informação ficou (e mais curto).
+- O seletor de profundidade perdeu o rótulo "Profundidade" ao lado — as opções
+  já dizem o que ele é; o nome continua inteiro no `aria-label`.
+
+### Corrigido
+
+- Espaço com o foco no resumo de um painel recolhível abria o painel **e**
+  ligava a reprodução automática; agora o `<summary>` é dono da própria tecla,
+  como já eram os botões e os links.
 
 ## [1.0.0] — 2026-08-07
 

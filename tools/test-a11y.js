@@ -332,15 +332,23 @@ const zerarAvisos = () => { avisos.length = 0; };
   conf("fora do tabuleiro, a mesma seta passa o lance",
     plyAtual() === "1", "| ply " + plyAtual() + " | " + t1(doc.querySelector(".mv.on")));
 
-  const aba = doc.querySelector('.tabs [role="tab"][data-tab="report"]');
-  aba.focus();
-  const plyAba = plyAtual();
-  tecla(aba, "ArrowRight"); await wait(30);
-  conf("com uma aba em foco, a seta troca de aba e não mexe na partida",
-    plyAtual() === plyAba && doc.activeElement.dataset.tab === "moves" &&
-    doc.activeElement.getAttribute("aria-selected") === "true",
-    "| aba agora: " + doc.activeElement.dataset.tab + " | ply " + plyAtual());
-  doc.querySelector('.tabs [data-tab="report"]').click();
+  /* O terceiro dono das teclas era a barra de abas (setas trocando de aba).
+     As abas acabaram e no lugar delas entrou o <summary> dos painéis
+     recolhíveis, onde quem manda no ESPAÇO é o navegador — é ele que abre e
+     fecha o disclosure. Se o app não cedesse, o mesmo espaço ligaria a
+     reprodução automática por baixo do painel abrindo. */
+  const resumo = doc.querySelector("#paneImport > summary");
+  conf("o painel de importar é um disclosure nativo, com resumo focável",
+    !!resumo && resumo.tagName === "SUMMARY" && $("paneImport").tagName === "DETAILS");
+  $("btnStart").click(); await wait(40);
+  resumo.focus();
+  const plyResumo = plyAtual(), tocandoAntes = $("btnPlay").className.includes("on");
+  const evEspaco = tecla(resumo, " "); await wait(30);
+  conf("com o resumo de um painel em foco, o espaço é do navegador e não liga a reprodução",
+    plyAtual() === plyResumo && $("btnPlay").className.includes("on") === tocandoAntes &&
+    !evEspaco.defaultPrevented,
+    "| ply " + plyAtual() + " | tocando: " + $("btnPlay").className.includes("on"));
+  resumo.blur();
 
   /* =========================================================================
      5. Selecionar e jogar um lance — só com o teclado
@@ -413,6 +421,11 @@ const zerarAvisos = () => { avisos.length = 0; };
      7. Ordem de tabulação
      ========================================================================= */
   console.log("\n== ordem de tabulação ==");
+  /* Os painéis recolhíveis são abertos aqui de propósito: fechado, o conteúdo
+     de um <details> sai da ordem de tabulação no navegador de verdade (o jsdom
+     não simula isso). Abrir antes de varrer é o que mantém honesta a promessa
+     de que a tabulação alcança tudo — à distância de um Enter no resumo. */
+  ["paneImport", "paneHelp"].forEach((id) => { if ($(id)) $(id).open = true; });
   const focaveis = [...doc.querySelectorAll(SEL_INTERATIVO)]
     .filter((el) => !escondido(el))
     .filter((el) => el.getAttribute("tabindex") !== "-1")
@@ -433,10 +446,31 @@ const zerarAvisos = () => { avisos.length = 0; };
     ids.findIndex((s) => /^casa:/.test(s)) < ids.indexOf("btnStart"));
   conf("nenhum tabindex positivo desarrumando a ordem",
     focaveis.every((e) => !(+e.getAttribute("tabindex") > 0)));
-  conf("as abas são um tablist com uma parada só",
-    doc.querySelectorAll('.tabs [role="tab"]').length === 4 &&
-    doc.querySelectorAll('.tabs [role="tab"]:not([tabindex="-1"])').length === 1 &&
-    doc.querySelector(".tabs").getAttribute("role") === "tablist");
+  /* As abas viraram três seções que convivem na tela mais dois disclosures.
+     Papel de aba que não é mais aba é pior do que aba: o leitor de tela
+     anunciaria "aba 2 de 4, selecionada" para uma coisa que não seleciona
+     nada. Então a semântica antiga tem que ter ido embora INTEIRA, e a nova
+     tem que estar no lugar: região com nome, vinda de um cabeçalho de verdade. */
+  const sobrasDeAba = doc.querySelectorAll('[role="tab"],[role="tablist"],[role="tabpanel"],.tabs,.tabpane');
+  conf("nenhum resto de semântica de aba no documento", sobrasDeAba.length === 0,
+    "| " + sobrasDeAba.length + " restos");
+  const secoes = [...doc.querySelectorAll(".panel-main .sec")];
+  const nomeDaSecao = (s) => {
+    const h = doc.getElementById(s.getAttribute("aria-labelledby") || "");
+    return h && /^H[1-6]$/.test(h.tagName) ? textoVisivel(h) : "";
+  };
+  conf("relatório, lances e motor são três regiões nomeadas, na tela ao mesmo tempo",
+    secoes.length === 3 && secoes.every((s) => nomeDaSecao(s).length > 2) &&
+    !!secoes[0].querySelector("#reportBody") && !!secoes[1].querySelector("#movesBody") &&
+    !!secoes[2].querySelector("#engineLines"),
+    "| " + secoes.map(nomeDaSecao).join(" · "));
+  const discs = [...doc.querySelectorAll("details.disc")];
+  conf("o que é de uso eventual está em <details> com resumo próprio",
+    discs.length >= 3 && discs.every((d) => {
+      const s = d.firstElementChild;
+      return s && s.tagName === "SUMMARY" && nomeAcessivel(s, doc).length > 2;
+    }),
+    "| " + discs.map((d) => "#" + d.id).join(" "));
 
   /* =========================================================================
      8. Treino completável pelo teclado
@@ -473,10 +507,9 @@ const zerarAvisos = () => { avisos.length = 0; };
   conf("o gabarito sai do próprio tabuleiro (seta azul)", !!gabarito,
     "| " + (gabarito ? gabarito.de + gabarito.para : "?"));
 
-  doc.querySelector('.tabs [data-tab="report"]').click(); await wait(40);
-  conf("o relatório oferece o treino", !!$("btnTrainStart"));
+  conf("o relatório oferece o treino, sem precisar trocar de painel", !!$("btnTrainStart"));
   $("btnTrainStart").click(); await wait(80);
-  conf("entrar no treino leva o foco para o tabuleiro (o botão sumiu com as abas)",
+  conf("entrar no treino leva o foco para o tabuleiro (o botão sumiu com o deck)",
     !!celFocada(), "| foco em: " + (doc.activeElement.id || doc.activeElement.className));
 
   conf("o cursor chega à casa de origem do lance certo só com as setas",
@@ -507,9 +540,10 @@ const zerarAvisos = () => { avisos.length = 0; };
   if (!$("btnTrainDone") && $("btnTrainNext")) { acionar($("btnTrainNext")); await wait(200); }
   conf("o treino chega ao fim sem mouse", !!$("btnTrainDone"), "| " + t1($("trainCount")));
   acionar($("btnTrainDone") || $("btnTrainExit")); await wait(60);
-  conf("sair do treino devolve o foco para a aba que reabriu",
-    doc.activeElement && doc.activeElement.getAttribute("role") === "tab",
-    "| foco em: " + (doc.activeElement.dataset.tab || doc.activeElement.id));
+  // sem aba para onde voltar, o destino é o botão que abriu o treino
+  conf("sair do treino devolve o foco para a chamada que abriu o treino",
+    doc.activeElement && doc.activeElement.id === "btnTrainStart",
+    "| foco em: " + (doc.activeElement.id || doc.activeElement.className));
 
   /* =========================================================================
      9. A mesma varredura, agora com o app cheio de conteúdo gerado

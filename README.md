@@ -114,7 +114,7 @@ Antes do veredito, todo candidato a sacrifício é **reanalisado com mais profun
 - PGN com várias partidas vira uma lista para você escolher.
 
 **Análise**
-- Stockfish 17.1 lite em WebAssembly, rodando local — **multi-thread quando a página permite**, single-thread quando não (o app decide sozinho e diz na aba Motor).
+- Stockfish 17.1 lite em WebAssembly, rodando local — **multi-thread quando a página permite**, single-thread quando não (o app decide sozinho e diz no painel Motor).
 - Três profundidades: rápida (12), padrão (16), profunda (20).
 - **Segunda passada** automática: lances suspeitos e sacrifícios voltam para o motor com 6 níveis a mais.
 
@@ -217,7 +217,7 @@ O Plyscope traz dois builds do mesmo Stockfish 17.1 lite e **escolhe sozinho** n
 | servida com `COOP: same-origin` + `COEP: require-corp` | `engine/stockfish-lite.js` | `hardwareConcurrency − 1`, no máximo 8 |
 | qualquer outra | `engine/stockfish-lite-single.js` | 1 |
 
-Esses dois cabeçalhos deixam a página *cross-origin isolated*, que é a condição do navegador para liberar o `SharedArrayBuffer` — e sem `SharedArrayBuffer` não existe WebAssembly com threads. Os atalhos do Windows, do macOS e do Linux já os mandam, e a Vercel também. A aba **Motor** mostra em que modo você está.
+Esses dois cabeçalhos deixam a página *cross-origin isolated*, que é a condição do navegador para liberar o `SharedArrayBuffer` — e sem `SharedArrayBuffer` não existe WebAssembly com threads. Os atalhos do Windows, do macOS e do Linux já os mandam, e a Vercel também. O painel **Motor** mostra em que modo você está.
 
 Se o multi-thread não subir (navegador antigo, memória curta), o app volta sozinho para o single-thread, sem aviso e sem quebrar nada.
 

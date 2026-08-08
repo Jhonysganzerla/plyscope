@@ -58,14 +58,18 @@
   --rail-w:clamp(330px,26vw,432px);
   --eval-w:18px;
   --eval-gap:10px;
-  --stage-chrome:264px;
+  /* altura de tudo que divide a coluna do tabuleiro com ele: topo, respiros,
+     as duas chapas de jogador e os controles. A linha de ajuda das teclas saiu
+     daqui para o painel "Legenda e atalhos" — são ~50 px que viraram tabuleiro. */
+  --stage-chrome:214px;
 
   /* o tabuleiro é dimensionado pela ALTURA disponível primeiro */
   --board:max(240px,min(calc(100vh - var(--stage-chrome)),calc(100vw - var(--rail-w) - var(--eval-w) - var(--eval-gap) - var(--gutter)*3 - 14px),880px));
   --board:max(240px,min(calc(100dvh - var(--stage-chrome)),calc(100vw - var(--rail-w) - var(--eval-w) - var(--eval-gap) - var(--gutter)*3 - 14px),880px));
   --stage-w:calc(var(--board) + var(--eval-w) + var(--eval-gap));
-  --pane-h:calc(100vh - var(--top-h) - 214px);
-  --pane-h:calc(100dvh - var(--top-h) - 214px);
+  /* a lista de lances não é mais dona do trilho inteiro: ela divide a altura
+     com o relatório e com o motor, então tem teto próprio e rola por dentro. */
+  --pane-h:clamp(170px,32vh,400px);
 }
 
 /* =========================================================
@@ -86,7 +90,7 @@ b,strong{font-weight:650}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 /* onde o pai corta o que sai da caixa (grupos de botões, abas, listas roláveis)
    o contorno tem que entrar para dentro, ou o foco fica invisível. */
-.btn-group :focus-visible,.tabs :focus-visible,.gamelist :focus-visible,
+.btn-group :focus-visible,.disc>summary:focus-visible,.gamelist :focus-visible,
 .moves :focus-visible,.langsel :focus-visible{outline-offset:-2px}
 
 /* texto só para leitor de tela: sai do fluxo sem sair da árvore de acessibilidade
@@ -133,7 +137,6 @@ b,strong{font-weight:650}
 
 .field{display:flex;flex-direction:column;gap:7px}
 .field label{font-size:11.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-3)}
-.field .help{font-size:12px;color:var(--tx-3)}
 textarea,input[type=text],select{
   background:var(--bg-deep);border:1px solid var(--line);border-radius:var(--r-sm);
   padding:9px 11px;outline:none;width:100%;
@@ -156,14 +159,13 @@ input[type=text]{height:32px;font-size:13.5px}
 
 .hint{font-size:12.5px;line-height:1.55;color:var(--tx-3)}
 .hint b{color:var(--tx-2);font-weight:600}
-.caption{font-size:11.5px;color:var(--tx-3);margin-top:8px;letter-spacing:.01em}
 
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md)}
 .pad{padding:var(--pad)}
 h3.sub{
-  margin:22px calc(var(--pad)*-1) 12px;padding:16px var(--pad) 0;
+  margin:14px 0 8px;padding:11px 0 0;
   border-top:1px solid var(--hair);
-  font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--tx-3);
+  font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--tx-3);
 }
 
 .empty{padding:22px 2px 8px;color:var(--tx-3);font-size:13px;line-height:1.65}
@@ -192,9 +194,9 @@ h3.sub{
 .brand-txt span{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--tx-3)}
 
 .toolbar{display:flex;align-items:center;gap:8px;margin-left:auto}
-.ctl{display:flex;align-items:center;gap:8px}
-.ctl-k{font-size:10.5px;font-weight:650;letter-spacing:.11em;text-transform:uppercase;color:var(--tx-3)}
-.ctl select{width:auto;min-width:150px}
+/* o seletor de profundidade não precisa do rótulo "Profundidade" ao lado:
+   cada opção já se apresenta ("Padrão · prof. 16"). O nome ficou no aria-label. */
+.toolbar select{width:auto;min-width:152px}
 .tool-sep{width:1px;height:20px;background:var(--line);margin:0 2px}
 
 /* seletor de idioma: dois selos discretos, do tamanho de um rótulo */
@@ -268,7 +270,7 @@ h3.sub{
   outline:3px solid var(--accent);outline-offset:-3px;
   box-shadow:inset 0 0 0 5px rgba(0,0,0,.45);
 }
-.boardkeys{margin-top:2px;text-align:left}
+.boardkeys{margin-top:10px}
 .boardkeys kbd{
   font-family:var(--mono);font-size:11px;font-weight:600;color:var(--tx-2);
   background:var(--surface-2);border:1px solid var(--line);border-bottom-width:2px;
@@ -334,27 +336,53 @@ h3.sub{
 .status-msg{font-size:12px;color:var(--tx-3);margin-top:8px;min-height:16px}
 
 /* =========================================================
-   5. ABAS
+   5. TRILHO: O DECK E OS DOIS DISCLOSURES
+   ---------------------------------------------------------
+   O deck é UM painel com três seções empilhadas — relatório, lances e motor —
+   separadas por fio de 1 px, sem caixa dentro de caixa: as três convivem na
+   tela porque quem revisa uma partida olha para as três ao mesmo tempo.
+   O que é de uso eventual (importar, legenda, atalhos, links) virou <details>
+   nativo: um Enter para abrir, zero pixel enquanto fechado, e a semântica é a
+   do próprio HTML — nada de tablist onde não há mais aba.
    ========================================================= */
+.disc{overflow:hidden}
+.disc>summary{
+  display:flex;align-items:center;gap:9px;height:38px;padding:0 13px 0 14px;
+  cursor:pointer;list-style:none;color:var(--tx-3);
+  font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  transition:color .18s var(--ease),background .18s var(--ease);
+}
+.disc>summary::-webkit-details-marker{display:none}
+.disc>summary::after{
+  content:"";width:6px;height:6px;margin-left:auto;flex:0 0 6px;
+  border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;
+  transform:translateY(-2px) rotate(45deg);
+  transition:transform .2s var(--ease);
+}
+.disc[open]>summary::after{transform:translateY(1px) rotate(-135deg)}
+.disc>summary:hover{color:var(--tx-2);background:rgba(255,255,255,.025)}
+.disc[open]>summary{color:var(--tx-2);border-bottom:1px solid var(--hair)}
+.disc .pad{padding:14px}
+
+/* ---------- o deck ---------- */
 .panel-main{overflow:hidden}
-.tabs{display:flex;border-bottom:1px solid var(--line);background:var(--surface-2)}
-.tabs button{
-  flex:1;height:42px;font-size:13px;font-weight:600;color:var(--tx-3);
-  position:relative;transition:color .18s var(--ease),background .18s var(--ease);
+.sec+.sec{border-top:1px solid var(--line)}
+.sec-h{display:flex;align-items:center;gap:10px;min-height:32px;padding:9px 10px 5px 14px}
+.sec-h h2{
+  font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--tx-3);white-space:nowrap;
 }
-.tabs button:hover{color:var(--tx-2);background:rgba(255,255,255,.02)}
-.tabs button+button{box-shadow:inset 1px 0 0 var(--hair)}
-.tabs button.on{color:var(--tx);background:var(--surface)}
-.tabs button.on::after{
-  content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--accent);
-}
-.tabpane{display:none}
-.tabpane.on{display:block}
+.sec-h .btn{margin-left:auto}
+.sec .pad{padding:2px 14px 14px}
+/* o disclosure de exportar fecha a seção do relatório: um fio em cima o separa
+   do corpo, e nenhum embaixo — quem separa as seções já é o .sec+.sec */
+.sec>.disc>summary{border-top:1px solid var(--hair)}
+.sec>.disc[open]>summary{border-bottom:0}
 
 /* =========================================================
    6. IMPORTAR
    ========================================================= */
-#tab-import .row{margin-top:12px}
+#paneImport .row{margin-top:12px}
 .drop{
   margin-top:12px;display:flex;align-items:center;justify-content:center;gap:9px;
   border:1px dashed #333a43;border-radius:var(--r-sm);padding:15px;
@@ -387,49 +415,62 @@ h3.sub{
 /* linha da abertura, no topo do relatório */
 .opening{
   display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
-  margin-bottom:12px;padding:9px 11px;
-  background:var(--surface-2);border:1px solid var(--hair);border-radius:var(--r-sm);
+  padding:0 0 9px;margin-bottom:10px;border-bottom:1px solid var(--hair);
 }
 .opening .eco{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent-hi);flex:0 0 auto}
 .opening .nm{font-size:13px;color:var(--tx);font-weight:600;min-width:0}
 .opening .hint{margin-left:auto;text-align:right;flex:0 0 auto}
 
-.accbox{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
-.accbox .side{padding:13px 14px;min-width:0;background:var(--surface-2)}
-.accbox .side+.side{border-left:1px solid var(--line)}
+/* precisão: dois números grandes lado a lado e UMA unidade para os dois.
+   Sem caixa — o par de números já é a hierarquia, a moldura era enfeite. */
+.accbox{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;align-items:end}
+.accbox .side{min-width:0}
 .accbox .side .k{
-  font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx-3);
+  font-size:11.5px;color:var(--tx-3);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.accbox .side .v{font-family:var(--mono);font-size:27px;font-weight:600;letter-spacing:-.035em;line-height:1.25;margin-top:2px}
-.accbox .side .u{font-size:11px;color:var(--tx-3);margin-top:-1px}
+.accbox .side .v{
+  font-family:var(--mono);font-size:31px;font-weight:600;
+  letter-spacing:-.045em;line-height:1.1;margin-top:1px;
+}
+.accbox .u{
+  grid-column:1/-1;margin-top:4px;
+  font-size:10.5px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:var(--tx-3);
+}
 #graph{
-  width:100%;height:110px;display:block;margin-top:14px;cursor:crosshair;
+  width:100%;height:74px;display:block;margin-top:12px;cursor:crosshair;
   background:#14171b;border:1px solid var(--hair);border-radius:var(--r-sm);
 }
 .report-grid{
   display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
-  margin-top:18px;font-size:13px;
+  margin-top:12px;font-size:12.5px;
 }
 .report-grid .r{display:contents}
-.report-grid .w,.report-grid .b,.report-grid .lbl{padding:7px 0;border-top:1px solid var(--hair)}
+.report-grid .w,.report-grid .b,.report-grid .lbl{padding:4px 0;border-top:1px solid var(--hair)}
 .report-grid .w{text-align:right;font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
 .report-grid .b{text-align:left;font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
 .report-grid .lbl{
   display:flex;align-items:center;justify-content:center;gap:7px;
-  color:var(--tx-2);font-size:12.5px;white-space:nowrap;padding-left:18px;padding-right:18px;
+  color:var(--tx-2);font-size:12px;white-space:nowrap;padding-left:16px;padding-right:16px;
 }
 .chip{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 8px}
+/* momentos decisivos: cinco atalhos para o lance, não cinco parágrafos.
+   O texto por extenso ("perdeu 24% de chance de vitória") virou o rótulo
+   acessível do botão — quem lê com os olhos já entende o −24%. */
+.keymoves{display:flex;flex-wrap:wrap;gap:6px}
 .keymove{
-  display:flex;align-items:center;gap:8px;width:100%;height:auto;
-  padding:9px 0;border:0;border-bottom:1px solid var(--hair);border-radius:0;
-  text-align:left;font-size:13px;color:var(--tx-2);
+  display:inline-flex;align-items:center;gap:6px;width:auto;height:27px;
+  padding:0 10px 0 8px;border-radius:99px;cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--line);
+  font-size:12px;color:var(--tx-2);
+  transition:background .18s var(--ease),color .18s var(--ease),border-color .18s var(--ease),transform .12s var(--ease);
 }
-.keymove:hover{background:transparent;color:var(--tx);border-color:var(--line)}
-.keymove:last-child{border-bottom:0}
+.keymove:hover{background:var(--surface-3);color:var(--tx);border-color:#333a44}
+.keymove:active{transform:translateY(1px)}
 .keymove b{font-family:var(--mono);color:var(--tx);font-weight:600;flex:0 0 auto}
-.keymove .hint{margin-left:auto;text-align:right}
-.keymove .ic{flex:0 0 15px}
+.keymove .ev{font-family:var(--mono);font-size:11px;color:var(--tx-3);font-variant-numeric:tabular-nums}
+.keymove:hover .ev{color:var(--tx-2)}
+.keymove .ic{flex:0 0 14px}
 
 /* --- treino "aprenda com seus erros": chamada no relatório + painel próprio --- */
 .train-cta{
@@ -482,7 +523,7 @@ h3.sub{
 /* =========================================================
    8. LANCES
    ========================================================= */
-.moves{max-height:var(--pane-h);overflow:auto;padding:6px 8px 10px;overscroll-behavior:contain}
+.moves{max-height:var(--pane-h);overflow:auto;padding:0 8px 10px;overscroll-behavior:contain}
 .mrow{display:grid;grid-template-columns:36px 1fr 1fr;align-items:center;gap:3px;border-radius:var(--r-xs)}
 .mrow:nth-of-type(even){background:rgba(255,255,255,.016)}
 .mrow .no{
@@ -507,11 +548,17 @@ h3.sub{
 /* =========================================================
    9. MOTOR
    ========================================================= */
-.pv{font-size:13px;line-height:1.65;color:var(--tx-3);word-break:break-word}
+.pv{
+  font-size:13px;line-height:1.6;color:var(--tx-3);word-break:break-word;
+  max-height:216px;overflow:auto;overscroll-behavior:contain;
+}
 .pv b{color:var(--tx-2);font-family:var(--mono);font-size:12px;font-weight:600}
-.pvline{padding:10px 0;border-bottom:1px solid var(--hair)}
-.pvline:first-child{padding-top:2px}
+.pvline{padding:8px 0;border-bottom:1px solid var(--hair)}
+.pvline:first-child{padding-top:0}
 .pvline:last-child{border-bottom:0}
+/* versão, modo e threads do motor: informação, não recado — uma linha só,
+   embaixo das linhas que ela descreve. */
+.eng-note{margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--tx-3)}
 .pvline .sc{
   display:inline-block;min-width:50px;padding:2px 7px;border-radius:var(--r-xs);
   background:#e6e3dc;color:#15171a;font-family:var(--mono);font-size:11.5px;font-weight:700;
@@ -527,21 +574,16 @@ h3.sub{
 .pvmove:hover{color:var(--accent-hi)}
 
 /* =========================================================
-   10. LEGENDA / TOAST
+   10. LEGENDA, ATALHOS E CRÉDITOS / TOAST
    ========================================================= */
-.legend{padding:0 2px 4px}
-.legend h3{
-  font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
-  color:var(--tx-3);margin-bottom:10px;
-}
 .badge-legend{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12px;color:var(--tx-3)}
 .badge-legend span{display:flex;align-items:center;gap:6px}
 .badge-legend .ic{width:14px;height:14px;flex:0 0 14px}
 
-/* rodapé do trilho: crédito e apoio, discretos */
+/* crédito e apoio, discretos, no fim do mesmo painel de ajuda */
 .rodape{
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  margin-top:14px;padding:12px 2px 4px;border-top:1px solid var(--hair);
+  margin-top:12px;padding:11px 0 0;border-top:1px solid var(--hair);
   font-size:11.5px;color:var(--tx-3);
 }
 .rodape a{
@@ -570,9 +612,9 @@ h3.sub{
 @media (max-width:980px){
   :root{
     --gutter:12px;--pad:14px;--top-h:88px;
-    --board:min(calc(100vh - 292px),calc(100vw - var(--gutter)*2 - var(--eval-w) - var(--eval-gap)));
-    --board:min(calc(100dvh - 292px),calc(100vw - var(--gutter)*2 - var(--eval-w) - var(--eval-gap)));
-    --pane-h:56vh;
+    --board:min(calc(100vh - 246px),calc(100vw - var(--gutter)*2 - var(--eval-w) - var(--eval-gap)));
+    --board:min(calc(100dvh - 246px),calc(100vw - var(--gutter)*2 - var(--eval-w) - var(--eval-gap)));
+    --pane-h:46vh;
   }
   html,body{height:auto}
   body{overflow-x:hidden;overflow-y:auto}
@@ -585,10 +627,9 @@ h3.sub{
   .toolbar{width:100%;margin-left:0;overflow-x:auto;scrollbar-width:none}
   .toolbar::-webkit-scrollbar{display:none}
   #btnAnalyze{order:-1}
-  .ctl{order:1}
+  #depth{order:1}
   .langsel{order:2}
-  .ctl-k{display:none}
-  .ctl select{min-width:130px}
+  .toolbar select{min-width:132px}
   .workspace{display:block;padding:0;overflow:visible}
   .stage{
     position:sticky;top:var(--top-h);z-index:20;
@@ -603,8 +644,7 @@ h3.sub{
   .toolbar{gap:6px}
   .tool-sep{display:none}
   .btn{padding:0 11px}
-  .accbox{grid-template-columns:1fr}
-  .accbox .side+.side{border-left:0;border-top:1px solid var(--line)}
+  .accbox .side .v{font-size:26px}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
@@ -630,14 +670,14 @@ h3.sub{
         <button class="btn" id="btnLangEn" data-lang="en" data-i18n-title="idioma.en" title="Ver a interface em inglês">EN</button>
       </div>
       <span class="tool-sep"></span>
-      <label class="ctl" for="depth">
-        <label class="ctl-k" for="depth" data-i18n="topo.profundidade">Profundidade</label>
-        <select id="depth" data-i18n-title="topo.profundidade.dica" title="Profundidade da análise">
-          <option value="12" data-i18n="prof.12">Rápida · prof. 12</option>
-          <option value="16" selected data-i18n="prof.16">Padrão · prof. 16</option>
-          <option value="20" data-i18n="prof.20">Profunda · prof. 20</option>
-        </select>
-      </label>
+      <!-- sem rótulo visível: as opções já dizem o que o campo é, e o nome
+           acessível continua inteiro no aria-label. -->
+      <select id="depth" data-i18n-title="topo.profundidade" title="Profundidade"
+        data-i18n-aria="topo.profundidade" aria-label="Profundidade">
+        <option value="12" data-i18n="prof.12">Rápida · prof. 12</option>
+        <option value="16" selected data-i18n="prof.16">Padrão · prof. 16</option>
+        <option value="20" data-i18n="prof.20">Profunda · prof. 20</option>
+      </select>
       <span class="tool-sep"></span>
       <button class="btn icon" id="btnFlip" data-i18n-title="btn.girar" title="Girar tabuleiro (F)" data-i18n-aria="btn.girar.aria" aria-label="Girar tabuleiro">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21V5m0 0L4 8m3-3 3 3M17 3v16m0 0 3-3m-3 3-3-3"/></svg>
@@ -732,14 +772,6 @@ h3.sub{
         <button class="btn sm" id="btnCopyPgn" data-i18n-title="btn.pgn" title="Copiar PGN da partida"
           data-i18n-aria="btn.pgn" aria-label="Copiar PGN da partida">PGN</button>
       </div>
-
-      <p class="hint boardkeys" id="boardKeys" data-i18n-html="teclado.dica">
-        <b>Tabuleiro com foco:</b> <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> movem o cursor de casa,
-        <kbd>Enter</kbd> seleciona a peça e joga, <kbd>Esc</kbd> cancela.
-        <b>Fora do tabuleiro:</b> <kbd>←</kbd><kbd>→</kbd> passam os lances,
-        <kbd>Home</kbd>/<kbd>End</kbd> vão ao início e ao fim, <kbd>espaço</kbd> reproduz,
-        <kbd>F</kbd> gira, <kbd>M</kbd> liga o som.
-      </p>
     </section>
 
     <!-- ============ trilho de painéis ============ -->
@@ -766,76 +798,75 @@ h3.sub{
         <div class="pad" id="trainBody"></div>
       </div>
 
-      <div class="panel panel-main">
-        <div class="tabs" role="tablist" data-i18n-aria="abas.aria" aria-label="Painéis da análise">
-          <button role="tab" id="tabbtn-import" aria-controls="tab-import" aria-selected="true"  data-tab="import" class="on" data-i18n="aba.importar">Importar</button>
-          <button role="tab" id="tabbtn-report" aria-controls="tab-report" aria-selected="false" tabindex="-1" data-tab="report" data-i18n="aba.relatorio">Relatório</button>
-          <button role="tab" id="tabbtn-moves"  aria-controls="tab-moves"  aria-selected="false" tabindex="-1" data-tab="moves" data-i18n="aba.lances">Lances</button>
-          <button role="tab" id="tabbtn-engine" aria-controls="tab-engine" aria-selected="false" tabindex="-1" data-tab="engine" data-i18n="aba.motor">Motor</button>
-        </div>
-
-        <!-- IMPORTAR -->
-        <div class="tabpane on" id="tab-import" role="tabpanel" aria-labelledby="tabbtn-import" tabindex="0">
-          <div class="pad">
-            <div class="field">
-              <label for="pgnBox" data-i18n="import.pgnLabel">PGN da partida</label>
-              <textarea id="pgnBox" spellcheck="false" placeholder="[Event &quot;...&quot;]&#10;1. e4 e5 2. Nf3 Nc6 ..."></textarea>
-              <span class="help" data-i18n="import.pgnAjuda">Cole o texto completo. Vários jogos no mesmo PGN viram uma lista.</span>
-            </div>
-            <div class="row">
-              <button class="btn primary grow" id="btnLoadPgn" data-i18n="import.carregar">Carregar PGN</button>
-              <button class="btn" id="btnPickFile" data-i18n="import.arquivo">Arquivo .pgn</button>
-              <input type="file" id="fileInput" accept=".pgn,.txt" style="display:none">
-            </div>
-            <div class="drop" id="drop">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-              <span data-i18n="import.arraste">arraste um arquivo .pgn aqui</span>
-            </div>
-
-            <h3 class="sub" data-i18n="salvas.titulo">Análises salvas</h3>
-            <div class="hint" id="savedHint" data-i18n="salvas.dica">As análises ficam guardadas neste navegador.</div>
-            <div class="gamelist" id="savedList"></div>
-
-            <h3 class="sub" data-i18n="buscar.titulo">Buscar partidas online</h3>
-            <div class="row">
-              <select id="site" style="width:132px;flex:0 0 132px"
-                data-i18n-aria="buscar.site.aria" aria-label="Site de xadrez">
-                <option value="chesscom">Chess.com</option>
-                <option value="lichess">Lichess</option>
-              </select>
-              <!-- placeholder não é rótulo: some quando o campo tem texto -->
-              <input type="text" id="userBox" data-i18n-placeholder="buscar.usuario" placeholder="seu usuário"
-                data-i18n-aria="buscar.usuario.aria" aria-label="Nome de usuário no site escolhido"
-                autocomplete="off" spellcheck="false">
-              <button class="btn" id="btnFetch" data-i18n="buscar.botao">Buscar</button>
-            </div>
-            <div class="hint" id="fetchHint" style="margin-top:9px" data-i18n="buscar.dica">Traz suas últimas partidas públicas. Sem login, sem custo.</div>
-            <div class="gamelist" id="gameList"></div>
+      <!-- IMPORTAR — uma vez por partida. Abre sozinho enquanto não há partida
+           na tela e se recolhe assim que uma entra; "Nova partida" o reabre. -->
+      <details class="panel disc" id="paneImport" open>
+        <summary><span data-i18n="sec.importar">Importar</span></summary>
+        <div class="pad">
+          <div class="field">
+            <label for="pgnBox" data-i18n="import.pgnLabel">PGN da partida</label>
+            <textarea id="pgnBox" spellcheck="false" placeholder="[Event &quot;...&quot;]&#10;1. e4 e5 2. Nf3 Nc6 ..."></textarea>
           </div>
-        </div>
+          <div class="row">
+            <button class="btn primary grow" id="btnLoadPgn" data-i18n="import.carregar">Carregar PGN</button>
+            <button class="btn" id="btnPickFile" data-i18n="import.arquivo">Arquivo .pgn</button>
+            <input type="file" id="fileInput" accept=".pgn,.txt" style="display:none">
+          </div>
+          <div class="drop" id="drop">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            <span data-i18n="import.arraste">arraste um arquivo .pgn aqui</span>
+          </div>
 
-        <!-- RELATÓRIO -->
-        <div class="tabpane" id="tab-report" role="tabpanel" aria-labelledby="tabbtn-report" tabindex="0">
+          <h3 class="sub" data-i18n="salvas.titulo">Análises salvas</h3>
+          <div class="hint" id="savedHint"></div>
+          <div class="gamelist" id="savedList"></div>
+
+          <h3 class="sub" data-i18n="buscar.titulo">Buscar partidas online</h3>
+          <div class="row">
+            <select id="site" style="width:132px;flex:0 0 132px"
+              data-i18n-aria="buscar.site.aria" aria-label="Site de xadrez">
+              <option value="chesscom">Chess.com</option>
+              <option value="lichess">Lichess</option>
+            </select>
+            <!-- placeholder não é rótulo: some quando o campo tem texto -->
+            <input type="text" id="userBox" data-i18n-placeholder="buscar.usuario" placeholder="seu usuário"
+              data-i18n-aria="buscar.usuario.aria" aria-label="Nome de usuário no site escolhido"
+              autocomplete="off" spellcheck="false">
+            <button class="btn" id="btnFetch" data-i18n="buscar.botao">Buscar</button>
+          </div>
+          <div class="hint" id="fetchHint" style="margin-top:9px"></div>
+          <div class="gamelist" id="gameList"></div>
+        </div>
+      </details>
+
+      <!-- O DECK: relatório, lances e motor lado a lado na vertical.
+           Cada seção é uma região com nome próprio (o <h2> do cabeçalho), que
+           é o que o leitor de tela usa para pular de uma para outra agora que
+           não há mais aba nenhuma para ele anunciar. -->
+      <div class="panel panel-main">
+
+        <section class="sec" aria-labelledby="hReport">
+          <div class="sec-h"><h2 id="hReport" data-i18n="sec.relatorio">Relatório</h2></div>
           <div class="pad" id="reportBody">
             <div class="empty">
               <span class="rule"></span>
               <strong data-i18n="rel.vazio.titulo">Relatório da partida</strong>
-              <span data-i18n-html="rel.vazio.texto">Carregue um PGN e clique em <b>Analisar partida</b> para ver precisão, classificação de cada lance e os momentos decisivos.</span>
+              <span data-i18n-html="rel.vazio.texto">Carregue um PGN e clique em <b>Analisar partida</b>.</span>
             </div>
           </div>
-          <div class="pad" id="exportRow" style="display:none;padding-top:0">
-            <div class="row">
-              <button class="btn grow" id="btnExportPgn" data-i18n-title="export.pgn.dica" title="Baixar a partida com avaliação e classificação em comentários" data-i18n="export.pgn">PGN comentado</button>
-              <button class="btn grow" id="btnExportPng" data-i18n-title="export.png.dica" title="Baixar o relatório como imagem PNG" data-i18n="export.png">Imagem do relatório</button>
+          <details class="disc" id="exportRow" style="display:none">
+            <summary><span data-i18n="export.titulo">Exportar</span></summary>
+            <div class="pad">
+              <div class="row">
+                <button class="btn grow" id="btnExportPgn" data-i18n-title="export.pgn.dica" title="Baixar a partida com avaliação e classificação em comentários" data-i18n="export.pgn">PGN comentado</button>
+                <button class="btn grow" id="btnExportPng" data-i18n-title="export.png.dica" title="Baixar o relatório como imagem PNG" data-i18n="export.png">Imagem do relatório</button>
+              </div>
             </div>
-            <p class="hint" style="margin-top:9px" data-i18n-html="export.nota">
-              O <b>.pgn</b> abre no Lichess, Chess.com e SCID com os selos e as avaliações. O <b>.png</b> é o resumo para compartilhar.
-            </p>
-          </div>
-        </div>
+          </details>
+        </section>
 
-        <!-- LANCES -->
-        <div class="tabpane" id="tab-moves" role="tabpanel" aria-labelledby="tabbtn-moves" tabindex="0">
+        <section class="sec" aria-labelledby="hMoves">
+          <div class="sec-h"><h2 id="hMoves" data-i18n="sec.lances">Lances</h2></div>
           <div class="moves" id="movesBody">
             <div class="empty" style="padding-left:8px">
               <span class="rule"></span>
@@ -843,10 +874,14 @@ h3.sub{
               <span data-i18n="lances.vazio.texto">Importe um PGN para navegar lance a lance.</span>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- MOTOR -->
-        <div class="tabpane" id="tab-engine" role="tabpanel" aria-labelledby="tabbtn-engine" tabindex="0">
+        <section class="sec" aria-labelledby="hEngine">
+          <div class="sec-h">
+            <h2 id="hEngine" data-i18n="sec.motor">Motor</h2>
+            <button class="btn sm" id="btnDeep" data-i18n="motor.fundo">Analisar esta posição</button>
+            <button class="btn sm" id="btnStopDeep" style="display:none" data-i18n="motor.parar">Parar</button>
+          </div>
           <div class="pad">
             <div id="engineLines" class="pv">
               <div class="empty">
@@ -855,33 +890,41 @@ h3.sub{
                 <span data-i18n="motor.vazio.texto">Analise a partida ou avalie só esta posição para ver as melhores linhas.</span>
               </div>
             </div>
-            <div class="row" style="margin-top:14px">
-              <button class="btn grow" id="btnDeep" data-i18n="motor.fundo">Analisar esta posição a fundo</button>
-              <button class="btn" id="btnStopDeep" style="display:none" data-i18n="motor.parar">Parar</button>
-            </div>
-            <p class="hint" style="margin-top:12px">
-              <span id="engineMode">Stockfish 17.1 lite</span> <span data-i18n-html="motor.nota">roda <b>no seu computador</b>. Nenhuma posição é enviada para servidores.</span>
-            </p>
+            <p class="eng-note"><span id="engineMode">Stockfish 17.1 lite</span></p>
           </div>
-        </div>
+        </section>
       </div>
 
-      <section class="legend">
-        <h3 data-i18n="legenda.titulo">Legenda</h3>
-        <div class="badge-legend" id="legend"></div>
-      </section>
+      <!-- LEGENDA, ATALHOS E CRÉDITOS — consulta rara, um Enter de distância.
+           O #boardKeys continua sendo a descrição da grade do tabuleiro
+           (aria-describedby): referência explícita vale mesmo com o painel
+           fechado, então o leitor de tela segue anunciando as teclas. -->
+      <details class="panel disc" id="paneHelp">
+        <summary><span data-i18n="ajuda.titulo">Legenda e atalhos</span></summary>
+        <div class="pad">
+          <div class="badge-legend" id="legend"></div>
 
-      <footer class="rodape">
-        <a id="linkRepo" href="https://github.com/Jhonysganzerla/plyscope" target="_blank" rel="noopener noreferrer">
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-          <span data-i18n="rodape.codigo">Código no GitHub</span>
-        </a>
-        <span class="sep">·</span>
-        <a id="linkApoio" href="https://github.com/Jhonysganzerla/plyscope#-apoie-o-projeto" target="_blank" rel="noopener noreferrer" data-i18n-title="rodape.apoiarTitulo" title="PIX ou GitHub Sponsors">
-          <span aria-hidden="true">☕</span>
-          <span data-i18n="rodape.apoiar">Me pague um café</span>
-        </a>
-      </footer>
+          <p class="hint boardkeys" id="boardKeys" data-i18n-html="teclado.dica">
+            <b>Tabuleiro com foco:</b> <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> movem o cursor de casa,
+            <kbd>Enter</kbd> seleciona a peça e joga, <kbd>Esc</kbd> cancela.
+            <b>Fora do tabuleiro:</b> <kbd>←</kbd><kbd>→</kbd> passam os lances,
+            <kbd>Home</kbd>/<kbd>End</kbd> vão ao início e ao fim, <kbd>espaço</kbd> reproduz,
+            <kbd>F</kbd> gira, <kbd>M</kbd> liga o som.
+          </p>
+
+          <div class="rodape">
+            <a id="linkRepo" href="https://github.com/Jhonysganzerla/plyscope" target="_blank" rel="noopener noreferrer">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+              <span data-i18n="rodape.codigo">Código no GitHub</span>
+            </a>
+            <span class="sep">·</span>
+            <a id="linkApoio" href="https://github.com/Jhonysganzerla/plyscope#-apoie-o-projeto" target="_blank" rel="noopener noreferrer" data-i18n-title="rodape.apoiarTitulo" title="PIX ou GitHub Sponsors">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h8.2a3.3 3.3 0 0 1 0 6.6h-.4A4.5 4.5 0 0 1 6.4 13H6a3 3 0 0 1-3-3zm8.2 1.6v3.4a1.7 1.7 0 0 0 0-3.4zM2 14.4h11v1.2H2z"/></svg>
+              <span data-i18n="rodape.apoiar">Me pague um café</span>
+            </a>
+          </div>
+        </div>
+      </details>
 
     </aside>
   </main>
@@ -4961,7 +5004,6 @@ const STR = {
   "idioma.pt":         ["Ver a interface em português do Brasil", "Show the interface in Brazilian Portuguese"],
   "idioma.en":         ["Ver a interface em inglês", "Show the interface in English"],
   "topo.profundidade": ["Profundidade", "Depth"],
-  "topo.profundidade.dica": ["Profundidade da análise", "Analysis depth"],
   "prof.12":           ["Rápida · prof. 12", "Fast · depth 12"],
   "prof.16":           ["Padrão · prof. 16", "Standard · depth 16"],
   "prof.20":           ["Profunda · prof. 20", "Deep · depth 20"],
@@ -5049,12 +5091,15 @@ const STR = {
   "status.concluida":    ["Análise concluída", "Analysis complete"],
   "status.precisao":     ["Precisão — Brancas {w} · Pretas {b}", "Accuracy — White {w} · Black {b}"],
 
-  /* ---------- abas ---------- */
-  "abas.aria":     ["Painéis da análise", "Analysis panels"],
-  "aba.importar":  ["Importar", "Import"],
-  "aba.relatorio": ["Relatório", "Report"],
-  "aba.lances":    ["Lances", "Moves"],
-  "aba.motor":     ["Motor", "Engine"],
+  /* ---------- seções do trilho ----------
+     Eram quatro abas; hoje relatório, lances e motor são três seções que
+     dividem o trilho, e importar é um painel recolhível. Os nomes continuam
+     os mesmos porque continuam sendo o que a pessoa procura na tela. */
+  "sec.importar":  ["Importar", "Import"],
+  "sec.relatorio": ["Relatório", "Report"],
+  "sec.lances":    ["Lances", "Moves"],
+  "sec.motor":     ["Motor", "Engine"],
+  "ajuda.titulo":  ["Legenda e atalhos", "Legend and shortcuts"],
 
   /* rótulo de cada lance da lista: o texto visível é notação, o leitor de
      tela ganha o número, o lado e o selo por extenso. */
@@ -5063,8 +5108,6 @@ const STR = {
 
   /* ---------- importar ---------- */
   "import.pgnLabel": ["PGN da partida", "Game PGN"],
-  "import.pgnAjuda": ["Cole o texto completo. Vários jogos no mesmo PGN viram uma lista.",
-                      "Paste the whole text. Several games in one PGN become a list."],
   "import.carregar": ["Carregar PGN", "Load PGN"],
   "import.arquivo":  ["Arquivo .pgn", ".pgn file"],
   "import.arraste":  ["arraste um arquivo .pgn aqui", "drop a .pgn file here"],
@@ -5073,15 +5116,12 @@ const STR = {
   "buscar.usuario.aria": ["Nome de usuário no site escolhido", "Username on the chosen site"],
 
   "salvas.titulo":      ["Análises salvas", "Saved analyses"],
-  "salvas.dica":        ["As análises ficam guardadas neste navegador.", "Analyses are kept in this browser."],
   "salvas.bloqueado":   ["Este navegador está com o armazenamento bloqueado — o app funciona igual, mas não guarda análises.",
                          "Storage is blocked in this browser — the app works the same, but analyses are not kept."],
-  "salvas.vazio":       ["Nenhuma análise guardada ainda. Ao terminar uma análise ela aparece aqui e reabre na hora.",
-                         "No analysis saved yet. When one finishes it shows up here and reopens instantly."],
-  "salvas.contagem":    ["Guardadas neste navegador (as {n} mais recentes). Clique para reabrir sem analisar de novo.",
-                         "Kept in this browser (the {n} most recent). Click to reopen without analyzing again."],
+  "salvas.vazio":       ["Nenhuma análise guardada ainda.", "No analysis saved yet."],
+  "salvas.contagem":    ["As {n} mais recentes, neste navegador — reabrem sem rodar o motor de novo.",
+                         "The {n} most recent, in this browser — they reopen without running the engine again."],
   "salvas.apagar":      ["Apagar", "Delete"],
-  "salvas.apagar.dica": ["Apagar esta análise", "Delete this analysis"],
   "salvas.apagar.aria": ["Apagar análise", "Delete analysis"],
   "salvas.semData":     ["sem data", "no date"],
   "salvas.precisao":    ["precisão {v}", "accuracy {v}"],
@@ -5089,8 +5129,6 @@ const STR = {
   "buscar.titulo":      ["Buscar partidas online", "Fetch games online"],
   "buscar.usuario":     ["seu usuário", "your username"],
   "buscar.botao":       ["Buscar", "Fetch"],
-  "buscar.dica":        ["Traz suas últimas partidas públicas. Sem login, sem custo.",
-                         "Brings in your latest public games. No login, no charge."],
   "buscar.buscando":    ["Buscando…", "Fetching…"],
   "buscar.achou":       ["{n} partidas encontradas — escolha uma:", "{n} games found — pick one:"],
   "buscar.digite":      ["Digite o nome de usuário.", "Type the username."],
@@ -5105,12 +5143,14 @@ const STR = {
 
   /* ---------- relatório ---------- */
   "rel.vazio.titulo":     ["Relatório da partida", "Game report"],
-  "rel.vazio.texto":      ["Carregue um PGN e clique em <b>Analisar partida</b> para ver precisão, classificação de cada lance e os momentos decisivos.",
-                           "Load a PGN and click <b>Analyze game</b> to see accuracy, a badge for every move and the key moments."],
+  "rel.vazio.texto":      ["Carregue um PGN e clique em <b>Analisar partida</b>.",
+                           "Load a PGN and click <b>Analyze game</b>."],
   "rel.carregada.titulo": ["Partida carregada", "Game loaded"],
-  "rel.carregada.texto":  ["Clique em <b>Analisar partida</b> para gerar precisão, classificação dos lances e momentos decisivos.",
-                           "Click <b>Analyze game</b> to produce accuracy, move badges and the key moments."],
+  "rel.carregada.texto":  ["Clique em <b>Analisar partida</b>.", "Click <b>Analyze game</b>."],
   "rel.precisao":         ["precisão (%)", "accuracy (%)"],
+  /* legenda do gráfico: virou o rótulo acessível do <canvas>, que antes não
+     tinha alternativa nenhuma. Uma frase a menos na tela, um nome a mais na
+     árvore de acessibilidade. */
   "rel.grafico":          ["Chance de vitória das brancas ao longo da partida — clique para navegar.",
                            "White's winning chances through the game — click to navigate."],
   "rel.momentos":         ["Momentos decisivos", "Key moments"],
@@ -5118,25 +5158,21 @@ const STR = {
   "rel.abertura.fora":    ["abertura fora da base", "opening not in the database"],
   "rel.abertura.teoria":  ["teoria até o lance {n}", "theory up to move {n}"],
 
+  "export.titulo":   ["Exportar", "Export"],
   "export.pgn":      ["PGN comentado", "Annotated PGN"],
   "export.pgn.dica": ["Baixar a partida com avaliação e classificação em comentários",
                       "Download the game with evaluations and badges as comments"],
   "export.png":      ["Imagem do relatório", "Report image"],
   "export.png.dica": ["Baixar o relatório como imagem PNG", "Download the report as a PNG image"],
-  "export.nota":     ["O <b>.pgn</b> abre no Lichess, Chess.com e SCID com os selos e as avaliações. O <b>.png</b> é o resumo para compartilhar.",
-                      "The <b>.pgn</b> opens in Lichess, Chess.com and SCID with the badges and evaluations. The <b>.png</b> is the summary to share."],
 
   /* ---------- treino: aprenda com seus erros ----------
      A fila é feita dos Erros e Capivaradas da partida. Quando o lado do
      usuário é conhecido (partida buscada pelo nome dele), o treino fala
      em segunda pessoa; quando não é, diz de quem era o lance. */
-  "treino.sub":          ["Treino", "Drill"],
   "treino.titulo":       ["Aprenda com seus erros", "Learn from your mistakes"],
   "treino.cta":          ["Aprenda com seus erros", "Learn from your mistakes"],
   "treino.cta.n":        ["{n} lances para revisar", "{n} moves to review"],
   "treino.cta.n1":       ["1 lance para revisar", "1 move to review"],
-  "treino.explica":      ["Cada Erro e cada Capivarada volta ao tabuleiro, na posição em que aconteceu, para você procurar o lance certo.",
-                          "Every Mistake and every Capivarada comes back to the board, in the position where it happened, for you to hunt down the right move."],
   "treino.sair":         ["Sair", "Leave"],
   "treino.sair.dica":    ["Sair do treino e voltar à análise", "Leave the drill and go back to the analysis"],
   "treino.contagem":     ["{k} de {n}", "{k} of {n}"],
@@ -5155,8 +5191,8 @@ const STR = {
   "treino.acertou":      ["Isso: {san}.", "That's it: {san}."],
   "treino.eraEsse":      ["O melhor era {san}.", "The best move was {san}."],
   "treino.porque":       ["E por quê:", "And here's why:"],
-  "treino.semLinha":     ["Esta análise foi salva por uma versão anterior do Plyscope, que não guardava a continuação. O lance certo continua conferido; para ver a linha, use a aba Motor.",
-                          "This analysis was saved by an earlier version of Plyscope, which kept no continuation. The right move is still checked; to see the line, use the Engine tab."],
+  "treino.semLinha":     ["Esta análise foi salva por uma versão anterior do Plyscope, que não guardava a continuação. O lance certo continua conferido; para ver a linha, use o painel Motor.",
+                          "This analysis was saved by an earlier version of Plyscope, which kept no continuation. The right move is still checked; to see the line, use the Engine panel."],
   "treino.errou":        ["{san} não é o melhor lance aqui.", "{san} isn't the best move here."],
   "treino.errouCusto.eu":    ["Foi o que você jogou na partida: custa {n}% de chance de vitória.",
                               "That's what you played in the game: it costs {n}% winning chances."],
@@ -5193,12 +5229,10 @@ const STR = {
   "motor.vazio.titulo": ["Motor ocioso", "Engine idle"],
   "motor.vazio.texto":  ["Analise a partida ou avalie só esta posição para ver as melhores linhas.",
                          "Analyze the game, or just evaluate this position, to see the best lines."],
-  "motor.semDados":     ["Sem dados para esta posição. Analise a partida ou avalie só esta posição no botão abaixo.",
-                         "No data for this position. Analyze the game, or evaluate just this position with the button below."],
-  "motor.fundo":        ["Analisar esta posição a fundo", "Analyze this position deeply"],
+  "motor.semDados":     ["Sem dados para esta posição — analise a partida ou só esta posição.",
+                         "No data for this position — analyze the game, or just this position."],
+  "motor.fundo":        ["Analisar esta posição", "Analyze this position"],
   "motor.parar":        ["Parar", "Stop"],
-  "motor.nota":         ["roda <b>no seu computador</b>. Nenhuma posição é enviada para servidores.",
-                         "runs <b>on your computer</b>. No position is ever sent to a server."],
   "motor.mt":           ["multi-thread, {n} threads", "multi-thread, {n} threads"],
   "motor.st":           ["1 thread", "1 thread"],
   "motor.semIsolamento": [" — sem isolamento cross-origin", " — no cross-origin isolation"],
@@ -5217,9 +5251,8 @@ const STR = {
      "Capivarada" é o nome do selo em português, piada interna do projeto.
      Em inglês ele é "Blunder": no meio de uma escala técnica (Inaccuracy,
      Mistake…) uma palavra em português não diz nada a quem lê em inglês. */
-  "legenda.titulo":       ["Legenda", "Legend"],
 
-  /* ---------- rodapé do trilho ---------- */
+  /* ---------- rodapé do painel de ajuda ---------- */
   "rodape.codigo":        ["Código no GitHub", "Source on GitHub"],
   "rodape.apoiar":        ["Me pague um café", "Buy me a coffee"],
   "rodape.apoiarTitulo":  ["PIX ou GitHub Sponsors", "PIX or GitHub Sponsors"],
@@ -6157,7 +6190,9 @@ function loadPgn(pgn) {
   renderPlayers(); renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
   $("btnAnalyze").disabled = false;
   renderReportBody();
-  showTab("moves");
+  /* importar é tarefa de uma vez por partida: entrou partida, o painel se
+     recolhe e devolve a altura para o relatório, os lances e o motor. */
+  fecharImport();
   return true;
 }
 
@@ -6374,7 +6409,6 @@ async function analyzeGame() {
     S.accuracy = gameAccuracy(S.positions, S.moves, S.perMove);
     renderReport();
     salvarAnalise();
-    showTab("report");
     Snd.pronto();
     status("status.concluida", null, "status.precisao",
            () => ({ w: fmtPct(S.accuracy.w, 1), b: fmtPct(S.accuracy.b, 1) }));
@@ -7066,43 +7100,46 @@ function renderReport() {
       <div class="lbl" title="${esc(clsDica(k))}"><span class="chip" style="background:${CLS[k].cor}"></span>${esc(clsNome(k))}</div>
       <div class="b" style="color:${CLS[k].cor}">${b}</div></div>`;
   }
-  // momentos-chave
+  /* Momentos-chave: cinco atalhos, não cinco parágrafos. O que se vê é o
+     lance e o que ele custou (−24%); a frase inteira, que é o texto que muda
+     de língua, é o rótulo acessível do botão — quem lê com o leitor de tela
+     ouve "12. Bxf7+, perdeu 24% de chance de vitória". */
   const key = S.perMove.map((pm, i) => ({ pm, i })).filter((x) => x.pm && x.pm.loss >= 10)
     .sort((a, b) => b.pm.loss - a.pm.loss).slice(0, 5);
   let keyHtml = "";
   if (key.length) {
-    keyHtml = `<h3 class="sub">${esc(tr("rel.momentos"))}</h3>`;
+    keyHtml = `<h3 class="sub">${esc(tr("rel.momentos"))}</h3><div class="keymoves">`;
     for (const k of key) {
       const m = S.moves[k.i];
       const n = m.num + (m.color === "w" ? ". " : "... ");
-      keyHtml += `<button class="btn ghost keymove" data-goto="${k.i + 1}">
-        ${icon(k.pm.cls, 15)}<b>${n}${m.san}</b>
-        <span class="hint">${esc(tr("rel.perdeu", { n: k.pm.loss.toFixed(0) }))}</span></button>`;
+      const perda = tr("rel.perdeu", { n: k.pm.loss.toFixed(0) });
+      keyHtml += `<button type="button" class="keymove" data-goto="${k.i + 1}"
+        aria-label="${esc(n + m.san + ", " + perda)}" title="${esc(perda)}">
+        ${icon(k.pm.cls, 14, true)}<b>${n}${m.san}</b>
+        <span class="ev">−${esc(k.pm.loss.toFixed(0))}%</span></button>`;
     }
+    keyHtml += "</div>";
   }
   // chamada do treino — só existe quando a partida tem o que treinar
   const filaTreino = filaDeErros(ladoDoUsuario(S.headers));
   let treinoHtml = "";
   if (filaTreino.length) {
-    treinoHtml = `<h3 class="sub">${esc(tr("treino.sub"))}</h3>
-      <button class="btn primary train-cta" id="btnTrainStart">
+    treinoHtml = `<button class="btn primary train-cta" id="btnTrainStart">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 4.8v14.4L19 12z"/></svg>
         <span>${esc(tr("treino.cta"))}</span>
         <span class="n">${esc(tr(filaTreino.length === 1 ? "treino.cta.n1" : "treino.cta.n",
                                  { n: filaTreino.length }))}</span>
-      </button>
-      <p class="hint" style="margin-top:9px">${esc(tr("treino.explica"))}</p>`;
+      </button>`;
   }
-  const unidade = esc(tr("rel.precisao"));
   $("reportBody").innerHTML = aberturaHtml(S.abertura) + `
     <div class="accbox">
       <div class="side"><div class="k">${esc(wName)}</div>
-        <div class="v">${fmtNum(S.accuracy.w, 1)}</div><div class="u">${unidade}</div></div>
+        <div class="v">${fmtNum(S.accuracy.w, 1)}</div></div>
       <div class="side"><div class="k">${esc(bName)}</div>
-        <div class="v">${fmtNum(S.accuracy.b, 1)}</div><div class="u">${unidade}</div></div>
+        <div class="v">${fmtNum(S.accuracy.b, 1)}</div></div>
+      <div class="u">${esc(tr("rel.precisao"))}</div>
     </div>
-    <canvas id="graph"></canvas>
-    <div class="caption">${esc(tr("rel.grafico"))}</div>
+    <canvas id="graph" role="img" aria-label="${esc(tr("rel.grafico"))}"></canvas>
     <div class="report-grid">${rows}</div>
     ${keyHtml}${treinoHtml}`;
   $("reportBody").querySelectorAll("[data-goto]").forEach((b) => (b.onclick = () => goTo(+b.dataset.goto)));
@@ -7367,13 +7404,14 @@ $("btnSound").onclick = () => {
 
    • foco numa casa do tabuleiro (role=gridcell) → as setas movem o cursor de
      casa, Enter seleciona/joga, Esc cancela;
-   • foco numa aba (role=tab) → as setas trocam de aba (padrão tablist);
    • em qualquer outro lugar → as setas passam os lances, como sempre foi.
 
-   Os dois ouvintes de dentro já chamam stopPropagation; esta lista é a
-   garantia escrita de quem manda, e não depende da ordem dos ouvintes.
-   Enter e espaço sobre um botão ou link também param aqui: o navegador já
-   aciona o elemento, e sem isto o espaço num botão ainda ligava o play. */
+   As abas tinham a terceira regra (setas trocando de aba) e sumiram junto com
+   o tablist; no lugar delas entrou o <summary> dos painéis recolhíveis, onde
+   o ESPAÇO é do navegador — é ele que abre e fecha o disclosure. Sem a linha
+   abaixo, o espaço num summary ainda ligava a reprodução por baixo.
+   Enter e espaço sobre um botão ou link param aqui pelo mesmo motivo: o
+   navegador já aciona o elemento. */
 const TECLAS_DISPUTADAS = {
   ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1,
   Home: 1, End: 1, Enter: 1, " ": 1, Spacebar: 1, Escape: 1,
@@ -7381,9 +7419,9 @@ const TECLAS_DISPUTADAS = {
 function focoDeOutroDono(e) {
   const alvo = e.target;
   if (!alvo || !alvo.closest) return false;
-  if (TECLAS_DISPUTADAS[e.key] && alvo.closest('#boardGrid,[role="tablist"]')) return true;
+  if (TECLAS_DISPUTADAS[e.key] && alvo.closest("#boardGrid")) return true;
   if ((e.key === "Enter" || e.key === " " || e.key === "Spacebar") &&
-      /^(button|a)$/i.test(alvo.tagName || "")) return true;
+      /^(button|a|summary)$/i.test(alvo.tagName || "")) return true;
   return false;
 }
 document.addEventListener("keydown", (e) => {
@@ -7509,7 +7547,7 @@ $("btnFetch").onclick = async () => {
    Diversos
    ============================================================ */
 $("btnAnalyze").onclick = analyzeGame;
-$("btnNew").onclick = () => { showTab("import"); $("pgnBox").focus(); };
+$("btnNew").onclick = () => abrirImport(true);
 $("btnDeep").onclick = () => analyzeCurrent(false);
 $("btnStopDeep").onclick = () => { Engine.stop(); };
 function copiar(txt, chaveOk) {
@@ -7526,37 +7564,20 @@ $("btnCopyPgn").onclick = () => {
     copiar(c.pgn(), "toast.pgnCopiado");
   } catch (e) { copiar($("pgnBox").value, "toast.pgnCopiado"); }
 };
-/* ---------- abas: padrão tablist ----------
-   Uma parada de tabulação para o conjunto (tabindex rotativo) e as setas
-   andando entre as abas, com o painel trocando junto — é o que o leitor de
-   tela e o teclado esperam de role=tab desde sempre. aria-selected é o que
-   diz "esta é a aba aberta"; a classe .on é só a pintura. */
-const abasBtns = () => [...document.querySelectorAll('.tabs [role="tab"]')];
-abasBtns().forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
-function showTab(name) {
-  abasBtns().forEach((b) => {
-    const on = b.dataset.tab === name;
-    b.classList.toggle("on", on);
-    b.setAttribute("aria-selected", on ? "true" : "false");
-    b.tabIndex = on ? 0 : -1;
-  });
-  document.querySelectorAll(".tabpane").forEach((p) => p.classList.toggle("on", p.id === "tab-" + name));
-  if (name === "report") drawGraph();
+/* ---------- painel de importar: <details> nativo ----------
+   Não sobrou nenhum widget de aba para o app administrar: relatório, lances e
+   motor estão os três na tela, e o que é de uso eventual é um <details>, que
+   já vem do navegador com teclado, foco e semântica de disclosure. Estas duas
+   funções são só quem abre e fecha o painel em nome de outra ação. */
+function abrirImport(foco) {
+  const d = $("paneImport");
+  if (d) d.open = true;
+  if (foco && $("pgnBox")) $("pgnBox").focus();
 }
-const barraAbas = document.querySelector(".tabs");
-if (barraAbas) barraAbas.addEventListener("keydown", (e) => {
-  const bs = abasBtns(), i = bs.indexOf(e.target);
-  if (i < 0) return;
-  let k;
-  if (e.key === "ArrowRight" || e.key === "ArrowDown") k = (i + 1) % bs.length;
-  else if (e.key === "ArrowLeft" || e.key === "ArrowUp") k = (i - 1 + bs.length) % bs.length;
-  else if (e.key === "Home") k = 0;
-  else if (e.key === "End") k = bs.length - 1;
-  else return;
-  e.preventDefault(); e.stopPropagation();
-  showTab(bs[k].dataset.tab);
-  bs[k].focus();
-});
+function fecharImport() {
+  const d = $("paneImport");
+  if (d) d.open = false;
+}
 let toastT;
 function toast(msg) {
   const t = $("toast");
@@ -7748,7 +7769,7 @@ function abrirSalva(id) {
   while (S.perMove.length < S.moves.length) S.perMove.push(null);
   S.accuracy = rec.acc && (rec.acc.w != null || rec.acc.b != null) ? rec.acc : null;
   renderPlayers(); renderMoves(); renderBoard(); renderEvalBar(); renderEngineTab();
-  renderReport(); showTab("report");
+  renderReport(); fecharImport();
   toast(tr("toast.analiseRestaurada"));
 }
 
@@ -7776,7 +7797,7 @@ function renderSaved() {
     return `<div class="saved"><button data-open="${esc(r.id)}">
         <div><b>${esc(nomeLado(m.w, "w"))}</b> ${m.we ? "(" + esc(m.we) + ")" : ""} vs <b>${esc(nomeLado(m.b, "b"))}</b> ${m.be ? "(" + esc(m.be) + ")" : ""}</div>
         <div class="meta">${esc(m.res || "*")} · ${esc(quando)} · ${esc(tr("salvas.precisao", { v: acc }))}</div>
-      </button><button class="del" data-del="${esc(r.id)}" title="${esc(tr("salvas.apagar.dica"))}" aria-label="${esc(tr("salvas.apagar.aria"))}">${apagar}</button></div>`;
+      </button><button class="del" data-del="${esc(r.id)}" aria-label="${esc(tr("salvas.apagar.aria"))}">${apagar}</button></div>`;
   }).join("");
   box.querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => abrirSalva(b.dataset.open)));
   box.querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => {
@@ -7837,11 +7858,6 @@ function pvDoTreino() {
   return out;
 }
 
-function abaAtiva() {
-  const b = document.querySelector(".tabs button.on");
-  return b ? b.dataset.tab : "report";
-}
-
 /* ---------- entrar e sair ---------- */
 function treinoIniciar(fila) {
   const lado = ladoDoUsuario(S.headers);
@@ -7849,8 +7865,7 @@ function treinoIniciar(fila) {
   if (!f.length) { toast(tr("treino.vazio")); return; }
   pararPlay();
   if (!loteNoInterativo()) Engine.stop();
-  const volta = (S.treino && S.treino.volta) ||
-                { ply: S.ply, flipped: S.flipped, aba: abaAtiva() };
+  const volta = (S.treino && S.treino.volta) || { ply: S.ply, flipped: S.flipped };
   treinoPararLinha();
   S.treino = { fila: f, k: 0, lado, res: {}, fase: "pergunta", tentativas: 0,
                dica: false, errado: null, certo: "", linha: [], passo: 0,
@@ -7859,7 +7874,7 @@ function treinoIniciar(fila) {
   const pm = document.querySelector(".panel-main");
   if (pm) pm.style.display = "none";
   treinoPosicao();
-  /* o botão que iniciou o treino acabou de ser escondido junto com as abas:
+  /* o botão que iniciou o treino acabou de ser escondido junto com o deck:
      sem levar o foco, o teclado voltaria para o começo da página. O destino
      é o tabuleiro — o exercício é achar um lance. */
   focarCursor();
@@ -7879,11 +7894,12 @@ function treinoSair() {
   if (pm) pm.style.display = "";
   renderPlayers(); renderBoard(); renderEvalBar(); renderEngineTab();
   highlightMove(); drawGraph();
-  showTab(t.volta.aba);
-  // o painel que tinha o foco não existe mais: devolve para a aba que reabriu
+  /* O painel que tinha o foco não existe mais. Sem aba para onde voltar, o
+     destino é o botão que abriu o treino — que é onde o foco estava antes de
+     entrar, e de onde se entra de novo. */
   if (doTeclado) {
-    const aba = document.querySelector('.tabs [data-tab="' + t.volta.aba + '"]');
-    if (aba) aba.focus();
+    const volta = $("btnTrainStart") || $("btnAnalyze");
+    if (volta) volta.focus();
   }
 }
 $("btnTrainExit").onclick = treinoSair;

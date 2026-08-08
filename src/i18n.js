@@ -45,7 +45,6 @@ const STR = {
   "idioma.pt":         ["Ver a interface em português do Brasil", "Show the interface in Brazilian Portuguese"],
   "idioma.en":         ["Ver a interface em inglês", "Show the interface in English"],
   "topo.profundidade": ["Profundidade", "Depth"],
-  "topo.profundidade.dica": ["Profundidade da análise", "Analysis depth"],
   "prof.12":           ["Rápida · prof. 12", "Fast · depth 12"],
   "prof.16":           ["Padrão · prof. 16", "Standard · depth 16"],
   "prof.20":           ["Profunda · prof. 20", "Deep · depth 20"],
@@ -133,12 +132,15 @@ const STR = {
   "status.concluida":    ["Análise concluída", "Analysis complete"],
   "status.precisao":     ["Precisão — Brancas {w} · Pretas {b}", "Accuracy — White {w} · Black {b}"],
 
-  /* ---------- abas ---------- */
-  "abas.aria":     ["Painéis da análise", "Analysis panels"],
-  "aba.importar":  ["Importar", "Import"],
-  "aba.relatorio": ["Relatório", "Report"],
-  "aba.lances":    ["Lances", "Moves"],
-  "aba.motor":     ["Motor", "Engine"],
+  /* ---------- seções do trilho ----------
+     Eram quatro abas; hoje relatório, lances e motor são três seções que
+     dividem o trilho, e importar é um painel recolhível. Os nomes continuam
+     os mesmos porque continuam sendo o que a pessoa procura na tela. */
+  "sec.importar":  ["Importar", "Import"],
+  "sec.relatorio": ["Relatório", "Report"],
+  "sec.lances":    ["Lances", "Moves"],
+  "sec.motor":     ["Motor", "Engine"],
+  "ajuda.titulo":  ["Legenda e atalhos", "Legend and shortcuts"],
 
   /* rótulo de cada lance da lista: o texto visível é notação, o leitor de
      tela ganha o número, o lado e o selo por extenso. */
@@ -147,8 +149,6 @@ const STR = {
 
   /* ---------- importar ---------- */
   "import.pgnLabel": ["PGN da partida", "Game PGN"],
-  "import.pgnAjuda": ["Cole o texto completo. Vários jogos no mesmo PGN viram uma lista.",
-                      "Paste the whole text. Several games in one PGN become a list."],
   "import.carregar": ["Carregar PGN", "Load PGN"],
   "import.arquivo":  ["Arquivo .pgn", ".pgn file"],
   "import.arraste":  ["arraste um arquivo .pgn aqui", "drop a .pgn file here"],
@@ -157,15 +157,12 @@ const STR = {
   "buscar.usuario.aria": ["Nome de usuário no site escolhido", "Username on the chosen site"],
 
   "salvas.titulo":      ["Análises salvas", "Saved analyses"],
-  "salvas.dica":        ["As análises ficam guardadas neste navegador.", "Analyses are kept in this browser."],
   "salvas.bloqueado":   ["Este navegador está com o armazenamento bloqueado — o app funciona igual, mas não guarda análises.",
                          "Storage is blocked in this browser — the app works the same, but analyses are not kept."],
-  "salvas.vazio":       ["Nenhuma análise guardada ainda. Ao terminar uma análise ela aparece aqui e reabre na hora.",
-                         "No analysis saved yet. When one finishes it shows up here and reopens instantly."],
-  "salvas.contagem":    ["Guardadas neste navegador (as {n} mais recentes). Clique para reabrir sem analisar de novo.",
-                         "Kept in this browser (the {n} most recent). Click to reopen without analyzing again."],
+  "salvas.vazio":       ["Nenhuma análise guardada ainda.", "No analysis saved yet."],
+  "salvas.contagem":    ["As {n} mais recentes, neste navegador — reabrem sem rodar o motor de novo.",
+                         "The {n} most recent, in this browser — they reopen without running the engine again."],
   "salvas.apagar":      ["Apagar", "Delete"],
-  "salvas.apagar.dica": ["Apagar esta análise", "Delete this analysis"],
   "salvas.apagar.aria": ["Apagar análise", "Delete analysis"],
   "salvas.semData":     ["sem data", "no date"],
   "salvas.precisao":    ["precisão {v}", "accuracy {v}"],
@@ -173,8 +170,6 @@ const STR = {
   "buscar.titulo":      ["Buscar partidas online", "Fetch games online"],
   "buscar.usuario":     ["seu usuário", "your username"],
   "buscar.botao":       ["Buscar", "Fetch"],
-  "buscar.dica":        ["Traz suas últimas partidas públicas. Sem login, sem custo.",
-                         "Brings in your latest public games. No login, no charge."],
   "buscar.buscando":    ["Buscando…", "Fetching…"],
   "buscar.achou":       ["{n} partidas encontradas — escolha uma:", "{n} games found — pick one:"],
   "buscar.digite":      ["Digite o nome de usuário.", "Type the username."],
@@ -189,12 +184,14 @@ const STR = {
 
   /* ---------- relatório ---------- */
   "rel.vazio.titulo":     ["Relatório da partida", "Game report"],
-  "rel.vazio.texto":      ["Carregue um PGN e clique em <b>Analisar partida</b> para ver precisão, classificação de cada lance e os momentos decisivos.",
-                           "Load a PGN and click <b>Analyze game</b> to see accuracy, a badge for every move and the key moments."],
+  "rel.vazio.texto":      ["Carregue um PGN e clique em <b>Analisar partida</b>.",
+                           "Load a PGN and click <b>Analyze game</b>."],
   "rel.carregada.titulo": ["Partida carregada", "Game loaded"],
-  "rel.carregada.texto":  ["Clique em <b>Analisar partida</b> para gerar precisão, classificação dos lances e momentos decisivos.",
-                           "Click <b>Analyze game</b> to produce accuracy, move badges and the key moments."],
+  "rel.carregada.texto":  ["Clique em <b>Analisar partida</b>.", "Click <b>Analyze game</b>."],
   "rel.precisao":         ["precisão (%)", "accuracy (%)"],
+  /* legenda do gráfico: virou o rótulo acessível do <canvas>, que antes não
+     tinha alternativa nenhuma. Uma frase a menos na tela, um nome a mais na
+     árvore de acessibilidade. */
   "rel.grafico":          ["Chance de vitória das brancas ao longo da partida — clique para navegar.",
                            "White's winning chances through the game — click to navigate."],
   "rel.momentos":         ["Momentos decisivos", "Key moments"],
@@ -202,25 +199,21 @@ const STR = {
   "rel.abertura.fora":    ["abertura fora da base", "opening not in the database"],
   "rel.abertura.teoria":  ["teoria até o lance {n}", "theory up to move {n}"],
 
+  "export.titulo":   ["Exportar", "Export"],
   "export.pgn":      ["PGN comentado", "Annotated PGN"],
   "export.pgn.dica": ["Baixar a partida com avaliação e classificação em comentários",
                       "Download the game with evaluations and badges as comments"],
   "export.png":      ["Imagem do relatório", "Report image"],
   "export.png.dica": ["Baixar o relatório como imagem PNG", "Download the report as a PNG image"],
-  "export.nota":     ["O <b>.pgn</b> abre no Lichess, Chess.com e SCID com os selos e as avaliações. O <b>.png</b> é o resumo para compartilhar.",
-                      "The <b>.pgn</b> opens in Lichess, Chess.com and SCID with the badges and evaluations. The <b>.png</b> is the summary to share."],
 
   /* ---------- treino: aprenda com seus erros ----------
      A fila é feita dos Erros e Capivaradas da partida. Quando o lado do
      usuário é conhecido (partida buscada pelo nome dele), o treino fala
      em segunda pessoa; quando não é, diz de quem era o lance. */
-  "treino.sub":          ["Treino", "Drill"],
   "treino.titulo":       ["Aprenda com seus erros", "Learn from your mistakes"],
   "treino.cta":          ["Aprenda com seus erros", "Learn from your mistakes"],
   "treino.cta.n":        ["{n} lances para revisar", "{n} moves to review"],
   "treino.cta.n1":       ["1 lance para revisar", "1 move to review"],
-  "treino.explica":      ["Cada Erro e cada Capivarada volta ao tabuleiro, na posição em que aconteceu, para você procurar o lance certo.",
-                          "Every Mistake and every Capivarada comes back to the board, in the position where it happened, for you to hunt down the right move."],
   "treino.sair":         ["Sair", "Leave"],
   "treino.sair.dica":    ["Sair do treino e voltar à análise", "Leave the drill and go back to the analysis"],
   "treino.contagem":     ["{k} de {n}", "{k} of {n}"],
@@ -239,8 +232,8 @@ const STR = {
   "treino.acertou":      ["Isso: {san}.", "That's it: {san}."],
   "treino.eraEsse":      ["O melhor era {san}.", "The best move was {san}."],
   "treino.porque":       ["E por quê:", "And here's why:"],
-  "treino.semLinha":     ["Esta análise foi salva por uma versão anterior do Plyscope, que não guardava a continuação. O lance certo continua conferido; para ver a linha, use a aba Motor.",
-                          "This analysis was saved by an earlier version of Plyscope, which kept no continuation. The right move is still checked; to see the line, use the Engine tab."],
+  "treino.semLinha":     ["Esta análise foi salva por uma versão anterior do Plyscope, que não guardava a continuação. O lance certo continua conferido; para ver a linha, use o painel Motor.",
+                          "This analysis was saved by an earlier version of Plyscope, which kept no continuation. The right move is still checked; to see the line, use the Engine panel."],
   "treino.errou":        ["{san} não é o melhor lance aqui.", "{san} isn't the best move here."],
   "treino.errouCusto.eu":    ["Foi o que você jogou na partida: custa {n}% de chance de vitória.",
                               "That's what you played in the game: it costs {n}% winning chances."],
@@ -277,12 +270,10 @@ const STR = {
   "motor.vazio.titulo": ["Motor ocioso", "Engine idle"],
   "motor.vazio.texto":  ["Analise a partida ou avalie só esta posição para ver as melhores linhas.",
                          "Analyze the game, or just evaluate this position, to see the best lines."],
-  "motor.semDados":     ["Sem dados para esta posição. Analise a partida ou avalie só esta posição no botão abaixo.",
-                         "No data for this position. Analyze the game, or evaluate just this position with the button below."],
-  "motor.fundo":        ["Analisar esta posição a fundo", "Analyze this position deeply"],
+  "motor.semDados":     ["Sem dados para esta posição — analise a partida ou só esta posição.",
+                         "No data for this position — analyze the game, or just this position."],
+  "motor.fundo":        ["Analisar esta posição", "Analyze this position"],
   "motor.parar":        ["Parar", "Stop"],
-  "motor.nota":         ["roda <b>no seu computador</b>. Nenhuma posição é enviada para servidores.",
-                         "runs <b>on your computer</b>. No position is ever sent to a server."],
   "motor.mt":           ["multi-thread, {n} threads", "multi-thread, {n} threads"],
   "motor.st":           ["1 thread", "1 thread"],
   "motor.semIsolamento": [" — sem isolamento cross-origin", " — no cross-origin isolation"],
@@ -301,9 +292,8 @@ const STR = {
      "Capivarada" é o nome do selo em português, piada interna do projeto.
      Em inglês ele é "Blunder": no meio de uma escala técnica (Inaccuracy,
      Mistake…) uma palavra em português não diz nada a quem lê em inglês. */
-  "legenda.titulo":       ["Legenda", "Legend"],
 
-  /* ---------- rodapé do trilho ---------- */
+  /* ---------- rodapé do painel de ajuda ---------- */
   "rodape.codigo":        ["Código no GitHub", "Source on GitHub"],
   "rodape.apoiar":        ["Me pague um café", "Buy me a coffee"],
   "rodape.apoiarTitulo":  ["PIX ou GitHub Sponsors", "PIX or GitHub Sponsors"],

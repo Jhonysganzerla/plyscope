@@ -22,13 +22,16 @@ No macOS e no Linux o script usa o **Python 3**, que quase sempre já está inst
 
 ## Como usar
 
-1. **Importar** — cole o PGN, arraste um arquivo `.pgn`, ou digite seu usuário do Chess.com / Lichess e clique em *Buscar* para escolher entre as últimas partidas.
+A tela é o tabuleiro à esquerda e, à direita, um trilho com três painéis empilhados que ficam visíveis ao mesmo tempo — **Relatório**, **Lances** e **Motor**. O que é de uso eventual mora em dois painéis recolhíveis, um acima e outro abaixo deles: **Importar** e **Legenda e atalhos**.
+
+1. **Importar** (painel recolhível, aberto enquanto não há partida; *Nova partida* o reabre) — cole o PGN, arraste um arquivo `.pgn`, ou digite seu usuário do Chess.com / Lichess e clique em *Buscar* para escolher entre as últimas partidas. É onde também ficam as **análises salvas**.
 2. **Analisar partida** — o Stockfish avalia todas as posições. A primeira vez baixa o motor do próprio disco (≈7 MB) e leva alguns segundos a mais.
 3. **Relatório** — precisão de cada jogador, gráfico de vantagem (clicável), contagem por tipo de lance e os momentos decisivos da partida.
 4. **Lances** — cada lance recebe um selo. Clique para ir até a posição.
-5. **Motor** — as três melhores linhas na posição atual. O botão *Analisar esta posição a fundo* roda o motor sem limite de profundidade. A linha cinza embaixo diz em que modo o motor está rodando (veja *Um thread ou vários*).
+5. **Motor** — as três melhores linhas na posição atual. O botão *Analisar esta posição*, no cabeçalho do painel, roda o motor sem limite de profundidade. A linha cinza embaixo diz em que modo o motor está rodando (veja *Um thread ou vários*).
 6. **Explorar** — clique na peça e depois na casa de destino para testar variações; o motor avalia na hora. Clicar num lance das linhas do motor também joga a variação até ali. Use *Voltar à partida* para sair.
 7. **Aprenda com seus erros** — no fim do relatório, o treino devolve cada Erro e cada Capivarada ao tabuleiro para você procurar o lance certo (veja abaixo).
+8. **Legenda e atalhos** (painel recolhível, no fim do trilho) — o que cada selo quer dizer, as teclas do tabuleiro e os links do projeto.
 
 Atalhos: `←` `→` navegam, `Home`/`End` vão ao início/fim, `F` gira o tabuleiro, `espaço` liga a reprodução automática, `M` liga e desliga o som.
 
@@ -43,7 +46,7 @@ O tabuleiro é uma parada de tabulação. Chegando nele pelo `Tab`, aparece um *
 | `Enter` ou `espaço` | seleciona a peça; na segunda vez, joga o lance na casa do cursor |
 | `Esc` | desfaz a seleção |
 
-**As setas têm dois donos, e o desempate é o foco.** Com uma casa em foco elas movem o cursor; com uma aba em foco trocam de aba; em qualquer outro lugar continuam passando os lances, como sempre. Vale para `Home`, `End` e `espaço` do mesmo jeito.
+**As setas têm dois donos, e o desempate é o foco.** Com uma casa em foco elas movem o cursor; em qualquer outro lugar continuam passando os lances, como sempre. Vale para `Home`, `End` e `espaço` do mesmo jeito — e no resumo de um painel recolhível o espaço é do navegador, que abre e fecha o painel.
 
 Explorar variações e o treino "aprenda com seus erros" se completam inteiros por teclado — o lance é o mesmo par de `Enter` que o mouse faz com dois cliques.
 
@@ -134,7 +137,7 @@ O app traz dois motores iguais em força e diferentes em velocidade, e escolhe s
 - **Multi-thread** — usa vários núcleos do seu processador (um a menos do que você tem, no máximo 8). É bem mais rápido.
 - **1 thread** — o de sempre, funciona em qualquer lugar.
 
-O multi-thread depende de um recurso que o navegador só libera quando a página é servida com dois cabeçalhos específicos (`Cross-Origin-Opener-Policy` e `Cross-Origin-Embedder-Policy`). Os atalhos do Windows, do macOS e do Linux já mandam esses cabeçalhos; um `python3 -m http.server` avulso, não. A aba **Motor** mostra qual dos dois está valendo agora, com o número de threads.
+O multi-thread depende de um recurso que o navegador só libera quando a página é servida com dois cabeçalhos específicos (`Cross-Origin-Opener-Policy` e `Cross-Origin-Embedder-Policy`). Os atalhos do Windows, do macOS e do Linux já mandam esses cabeçalhos; um `python3 -m http.server` avulso, não. O painel **Motor** mostra qual dos dois está valendo agora, com o número de threads.
 
 Se o multi-thread não conseguir iniciar, o app volta sozinho para 1 thread — a análise continua igual, só mais devagar. A busca de partidas no Chess.com e no Lichess funciona nos dois modos.
 

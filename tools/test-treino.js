@@ -23,7 +23,6 @@ const { window, $, wait, ok, conf, t1, CHAVE } = H;
     .filter((e) => /^(Erro|Capivarada)$/.test(t1(e.querySelector(".ic title"))))
     .map((e) => +e.dataset.ply);
 
-  window.document.querySelector('[data-tab="report"]').click();
   conf("partida sem Erro nem Capivarada não oferece treino",
     errosDaTela().length === 0 && !$("btnTrainStart"),
     "| erros na lista: " + errosDaTela().length);
@@ -96,13 +95,12 @@ const { window, $, wait, ok, conf, t1, CHAVE } = H;
   });
   const alvo = (contaRel["Erro"] || 0) + (contaRel["Capivarada"] || 0);
 
-  window.document.querySelector('[data-tab="report"]').click();
   conf("com erros na partida, o relatório chama para o treino",
     !!$("btnTrainStart") && t1($("btnTrainStart")).length > 0, "| " + t1($("btnTrainStart")));
   const goTreino = H.buscas();
   $("btnTrainStart").click(); await wait(80);
   const naFila = +(t1($("trainCount")).match(/(\d+)\s*$/) || [0, 0])[1];
-  conf("entrar no treino abre o painel e recolhe as abas",
+  conf("entrar no treino abre o painel e recolhe o deck",
     $("panelTrain").style.display === ""
     && window.document.querySelector(".panel-main").style.display === "none",
     "| contador: " + t1($("trainCount")));
@@ -183,7 +181,7 @@ const { window, $, wait, ok, conf, t1, CHAVE } = H;
 
   /* ---- sair: a análise continua onde estava ---- */
   $("btnTrainExit").click(); await wait(60);
-  conf("sair do treino fecha o painel e devolve as abas",
+  conf("sair do treino fecha o painel e devolve o deck",
     $("panelTrain").style.display === "none"
     && window.document.querySelector(".panel-main").style.display === "");
   conf("a análise continua onde estava e o treino inteiro não usou o motor",
@@ -207,7 +205,7 @@ const { window, $, wait, ok, conf, t1, CHAVE } = H;
     Math.round((comPv - semPv) / Math.max(1, nPl) * 80), "B");
 
   /* ---- reabrir a análise salva e treinar (é onde a pv faria falta) ---- */
-  window.document.querySelector('[data-tab="import"]').click();
+  $("paneImport").open = true;
   window.document.querySelector("#savedList [data-open]").click(); await wait(200);
   const goSalva = H.buscas();
   $("btnTrainStart").click(); await wait(60);
@@ -221,7 +219,7 @@ const { window, $, wait, ok, conf, t1, CHAVE } = H;
   const listaV = JSON.parse(window.localStorage.getItem(CHAVE) || "[]");
   delete listaV[0].pvt;
   window.localStorage.setItem(CHAVE, JSON.stringify(listaV));
-  window.document.querySelector('[data-tab="import"]').click();
+  $("paneImport").open = true;
   window.document.querySelector("#savedList [data-open]").click(); await wait(200);
   $("btnTrainStart").click(); await wait(60);
   clicarCasa(gab[0].melhor.de); await wait(20);
@@ -236,7 +234,7 @@ const { window, $, wait, ok, conf, t1, CHAVE } = H;
   const listaU = JSON.parse(window.localStorage.getItem(CHAVE) || "[]");
   listaU[0].us = "Adolf Anderssen";          // como fica quando a partida veio da busca
   window.localStorage.setItem(CHAVE, JSON.stringify(listaU));
-  window.document.querySelector('[data-tab="import"]').click();
+  $("paneImport").open = true;
   window.document.querySelector("#savedList [data-open]").click(); await wait(200);
   conf("com perspectiva conhecida, a chamada já anuncia só os erros dele",
     /2/.test(t1($("btnTrainStart"))), "| " + t1($("btnTrainStart")));
@@ -249,10 +247,28 @@ const { window, $, wait, ok, conf, t1, CHAVE } = H;
   $("btnCopyFen").click(); $("btnCopyPgn").click(); await wait(50);
   conf("copiar sem clipboard avisa em vez de quebrar", $("toast").textContent.length > 0,
     "| " + $("toast").textContent);
-  ["import","report","moves","engine"].forEach((t) => window.document.querySelector('[data-tab="'+t+'"]').click());
-  conf("as quatro abas abrem", ["import","report","moves","engine"].every((t) =>
-    !!window.document.querySelector('[data-tab="'+t+'"]')));
-  console.log("abas OK");
+  /* Era "as quatro abas abrem", uma de cada vez. Agora as três que se
+     consultam o tempo todo têm que estar na tela JUNTAS — nenhuma escondendo
+     a outra — e a quarta, importar, a um clique no resumo do painel. */
+  $("paneImport").open = false;
+  const naTela = (id) => {
+    const el = $(id);
+    for (let n = el; n; n = n.parentElement) {
+      if (n.tagName === "DETAILS" && !n.open) return false;
+      if (/display:\s*none/.test(n.getAttribute && n.getAttribute("style") || "")) return false;
+    }
+    return true;
+  };
+  conf("relatório, lances e motor ficam visíveis ao mesmo tempo, sem trocar de painel",
+    ["reportBody", "movesBody", "engineLines"].every(naTela) &&
+    window.document.querySelectorAll(".mv").length > 0 &&
+    window.document.querySelectorAll(".accbox .v").length === 2,
+    "| lances: " + window.document.querySelectorAll(".mv").length +
+    " | motor: " + t1($("engineLines")).slice(0, 40));
+  conf("importar sai do caminho e volta com um clique no resumo",
+    !naTela("pgnBox") &&
+    (window.document.querySelector("#paneImport > summary").click(), naTela("pgnBox")),
+    "| " + t1(window.document.querySelector("#paneImport > summary")));
 
   /* ---------- o veredito ---------- */
   const falhas = ok.filter((x) => !x).length;
